@@ -159,6 +159,7 @@ ifeq ($(HOSTARCH),$(ARCH))
 CROSS_COMPILE ?=
 endif
 
+CROSS_COMPILE ?=/crosstools/zynq_tools/source/bin/arm-xilinx-linux-gnueabi-
 # load other configuration
 include $(TOPDIR)/config.mk
 
@@ -269,6 +270,7 @@ LIBS-$(CONFIG_API) += api/
 LIBS-$(CONFIG_HAS_POST) += post/
 LIBS-y += test/
 
+LIBS-y += lld/
 ifneq (,$(filter $(SOC), mx25 mx27 mx5 mx6 mx31 mx35 mxs vf610))
 LIBS-y += arch/$(ARCH)/imx-common/
 endif

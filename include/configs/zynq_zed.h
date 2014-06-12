@@ -26,5 +26,5 @@
 #define CONFIG_DEFAULT_DEVICE_TREE	zynq-zed
 
 #include <configs/zynq-common.h>
-
+#define CONFIG_CMD_SNOR_VALIDATE   //bean add
 #endif /* __CONFIG_ZYNQ_ZED_H */

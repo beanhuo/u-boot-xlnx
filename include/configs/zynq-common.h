@@ -227,7 +227,7 @@
 		"fi\0" \
 	"sdboot=if mmcinfo; then " \
 			"run uenvboot; " \
-			"echo Copying Linux from SD to RAM... && " \
+			"echo Beanhuo add dbg infor,now using uImage, Copying Linux from SD to RAM... && " \
 			"fatload mmc 0 0x3000000 ${kernel_image} && " \
 			"fatload mmc 0 0x2A00000 ${devicetree_image} && " \
 			"fatload mmc 0 0x2000000 ${ramdisk_image} && " \
