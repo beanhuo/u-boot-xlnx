@@ -252,6 +252,10 @@
 		"tftpboot 0x2A00000 ${devicetree_image} && " \
 		"tftpboot 0x2000000 ${ramdisk_image} && " \
 		"bootm 0x3000000 0x2000000 0x2A00000\0" \
+	"nfsboot=echo TFTPing Linux to RAM... && " \
+		"tftpboot 0x3000000 ${kernel_image} && " \
+		"tftpboot 0x2A00000 ${devicetree_image} && " \
+		"go 0x3000000\0" \
 	"rsa_norboot=echo Copying Image from NOR flash to RAM... && " \
 		"cp.b 0xE2100000 0x100000 ${boot_size} && " \
 		"zynqrsa 0x100000 && " \

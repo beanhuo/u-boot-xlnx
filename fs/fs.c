@@ -282,7 +282,7 @@ int do_load(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[],
 	if (len_read <= 0)
 		return 1;
 
-	printf("%d bytes read in %lu ms", len_read, time);
+	printf("0x%x bytes read in %lu ms", len_read, time);
 	if (time > 0) {
 		puts(" (");
 		print_size(len_read / time * 1000, "/s");
