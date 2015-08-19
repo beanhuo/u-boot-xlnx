@@ -16,8 +16,7 @@
 
 /* Allow ports to override the default behavior */
 __attribute__((weak))
-unsigned long do_go_exec(ulong (*entry)(int, char * const []), int argc,
-				 char * const argv[])
+unsigned long do_go_exec (ulong (*entry)(int, char * const []), int argc,char * const argv[])
 {
 	return entry (argc, argv);
 }
@@ -38,7 +37,9 @@ static int do_go(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	 * pass address parameter as argv[0] (aka command name),
 	 * and all remaining args
 	 */
-	rc = do_go_exec ((void *)addr, argc - 1, argv + 1);
+	printf("jump to ...... \n");
+	rc = ((ulong (*)(int, char *[]))addr)(--argc, &argv[1]);
+	//rc = do_go_exec ((void *)addr, argc - 1, argv + 1);
 	if (rc != 0) rcode = 1;
 
 	printf ("## Application terminated, rc = 0x%lX\n", rc);

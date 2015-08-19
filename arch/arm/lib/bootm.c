@@ -300,18 +300,22 @@ int do_bootm_linux(int flag, int argc, char *argv[], bootm_headers_t *images)
 	/* No need for those on ARM */
 	if (flag & BOOTM_STATE_OS_BD_T || flag & BOOTM_STATE_OS_CMDLINE)
 		return -1;
-
+	
 	if (flag & BOOTM_STATE_OS_PREP) {
 		boot_prep_linux(images);
 		return 0;
 	}
-
+	
+	printf("====>[%s][%s][%d] jump to linux \n",__FILE__,__FUNCTION__,__LINE__);
 	if (flag & (BOOTM_STATE_OS_GO | BOOTM_STATE_OS_FAKE_GO)) {
 		boot_jump_linux(images, flag);
 		return 0;
 	}
-
+		
+	
+	printf("====>[%s][%s][%d] jump to linux \n",__FILE__,__FUNCTION__,__LINE__);
 	boot_prep_linux(images);
+	printf("====>[%s][%s][%d] jump to linux \n",__FILE__,__FUNCTION__,__LINE__);
 	boot_jump_linux(images, flag);
 	return 0;
 }
