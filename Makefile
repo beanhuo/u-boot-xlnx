@@ -240,7 +240,7 @@ export	HOSTARCH HOSTOS
 ifeq ($(HOSTARCH),$(ARCH))
 CROSS_COMPILE ?=
 endif
-
+CROSS_COMPILE ?=/crosstools/zynq_tools/source/bin/arm-xilinx-linux-gnueabi-
 KCONFIG_CONFIG	?= .config
 export KCONFIG_CONFIG
 
