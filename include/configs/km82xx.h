@@ -29,8 +29,6 @@
 #error ("Board unsupported")
 #endif
 
-#define CONFIG_DISPLAY_BOARDINFO
-
 #define	CONFIG_SYS_TEXT_BASE	0xFE000000
 
 #define CONFIG_MISC_INIT_R
@@ -429,8 +427,6 @@ int get_scl(void);
 				 ORxG_SCY_5_CLK | ORxG_TRLX)
 
 #define	CONFIG_SYS_RESET_ADDRESS 0xFDFFFFFC	/* "bad" address */
-
-#define CONFIG_FIT		1
 
 #define OF_TBCLK		(bd->bi_busfreq / 4)
 #define OF_STDOUT_PATH		"/soc/cpm/serial@11a90"

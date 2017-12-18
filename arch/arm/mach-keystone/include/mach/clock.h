@@ -63,8 +63,12 @@
 #define CLOCK_INDEXES_LIST	CLK_LIST(GENERATE_INDX_STR)
 
 enum {
+	SPD200,
+	SPD400,
+	SPD600,
 	SPD800,
 	SPD850,
+	SPD900,
 	SPD1000,
 	SPD1200,
 	SPD1250,
@@ -121,11 +125,9 @@ extern int speeds[];
 void init_plls(void);
 void init_pll(const struct pll_init_data *data);
 struct pll_init_data *get_pll_init_data(int pll);
-unsigned long clk_get_rate(unsigned int clk);
-unsigned long clk_round_rate(unsigned int clk, unsigned long hz);
-int clk_set_rate(unsigned int clk, unsigned long hz);
-int get_max_dev_speed(void);
-int get_max_arm_speed(void);
+unsigned long ks_clk_get_rate(unsigned int clk);
+int get_max_dev_speed(int *spds);
+int get_max_arm_speed(int *spds);
 void pll_pa_clk_sel(void);
 
 #endif

@@ -10,6 +10,8 @@
 #ifndef _OMAP3_H_
 #define _OMAP3_H_
 
+#include <linux/sizes.h>
+
 /* Stuff on L3 Interconnect */
 #define SMX_APE_BASE			0x68000000
 
@@ -145,7 +147,8 @@ struct gpio {
 
 #define NON_SECURE_SRAM_START		0x40208000 /* Works for GP & EMU */
 #define NON_SECURE_SRAM_END		0x40210000
-#define SRAM_SCRATCH_SPACE_ADDR		0x4020E000
+#define NON_SECURE_SRAM_IMG_END		0x4020F000
+#define SRAM_SCRATCH_SPACE_ADDR		(NON_SECURE_SRAM_IMG_END - SZ_1K)
 
 #define LOW_LEVEL_SRAM_STACK		0x4020FFFC
 
@@ -249,6 +252,8 @@ struct gpio {
 /* ABB tranxdone mask */
 #define OMAP_ABB_MPU_TXDONE_MASK	(0x1 << 26)
 
+#define OMAP_REBOOT_REASON_OFFSET	0x04
+
 /* Boot parameters */
 #ifndef __ASSEMBLY__
 struct omap_boot_parameters {
@@ -260,9 +265,9 @@ struct omap_boot_parameters {
 	unsigned int boot_device_descriptor;
 };
 
-char omap_reboot_mode(void);
+int omap_reboot_mode(char *mode, unsigned int length);
 int omap_reboot_mode_clear(void);
-int omap_reboot_mode_store(char c);
+int omap_reboot_mode_store(char *mode);
 #endif
 
 #endif

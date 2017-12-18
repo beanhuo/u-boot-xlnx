@@ -405,7 +405,7 @@ static int display_fdt_by_regions(struct display_info *disp, const void *blob,
  * The output of this function may or may not be a valid FDT. To ensure it
  * is, these disp->flags must be set:
  *
- *   FDT_REG_SUPERNODES: ensures that subnodes are preceeded by their
+ *   FDT_REG_SUPERNODES: ensures that subnodes are preceded by their
  *		parents. Without this option, fragments of subnode data may be
  *		output without the supernodes above them. This is useful for
  *		hashing but cannot produce a valid FDT.
@@ -660,6 +660,8 @@ static int fdtgrep_find_regions(const void *fdt,
 		if (!ret)
 			count++;
 	}
+	if (ret && ret != -FDT_ERR_NOTFOUND)
+		return ret;
 
 	/* Find all the aliases and add those regions back in */
 	if (disp->add_aliases && count < max_regions) {
@@ -667,7 +669,11 @@ static int fdtgrep_find_regions(const void *fdt,
 
 		new_count = fdt_add_alias_regions(fdt, region, count,
 						  max_regions, &state);
-		if (new_count <= max_regions) {
+		if (new_count == -FDT_ERR_NOTFOUND) {
+			/* No alias node found */
+		} else if (new_count < 0) {
+			return new_count;
+		} else if (new_count <= max_regions) {
 			/*
 			* The alias regions will now be at the end of the list.
 			* Sort the regions by offset to get things into the
@@ -678,9 +684,6 @@ static int fdtgrep_find_regions(const void *fdt,
 			      h_cmp_region);
 		}
 	}
-
-	if (ret != -FDT_ERR_NOTFOUND)
-		return ret;
 
 	return count;
 }
@@ -807,6 +810,9 @@ static int do_fdtgrep(struct display_info *disp, const char *filename)
 				disp->flags);
 		if (count < 0) {
 			report_error("fdt_find_regions", count);
+			if (count == -FDT_ERR_BADLAYOUT)
+				fprintf(stderr,
+					"/aliases node must come before all other nodes\n");
 			return -1;
 		}
 		if (count <= max_regions)

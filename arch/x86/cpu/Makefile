@@ -10,7 +10,7 @@
 
 extra-y	= start.o
 obj-$(CONFIG_X86_RESET_VECTOR) += resetvec.o start16.o
-obj-y	+= interrupts.o cpu.o cpu_x86.o call64.o
+obj-y	+= interrupts.o cpu.o cpu_x86.o call64.o setjmp.o
 
 AFLAGS_REMOVE_call32.o := -mregparm=3 \
 	$(if $(CONFIG_EFI_STUB_64BIT),-march=i386 -m32)
@@ -18,7 +18,9 @@ AFLAGS_call32.o := -fpic -fshort-wchar
 
 extra-y += call32.o
 
+obj-y += intel_common/
 obj-$(CONFIG_INTEL_BAYTRAIL) += baytrail/
+obj-$(CONFIG_INTEL_BROADWELL) += broadwell/
 obj-$(CONFIG_SYS_COREBOOT) += coreboot/
 obj-$(CONFIG_EFI_APP) += efi/
 obj-$(CONFIG_QEMU) += qemu/

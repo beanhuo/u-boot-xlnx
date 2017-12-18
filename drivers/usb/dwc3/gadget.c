@@ -18,6 +18,7 @@
 #include <malloc.h>
 #include <asm/dma-mapping.h>
 #include <usb/lin_gadget_compat.h>
+#include <linux/bug.h>
 #include <linux/list.h>
 
 #include <linux/usb/ch9.h>
@@ -294,7 +295,7 @@ int dwc3_send_gadget_generic_command(struct dwc3 *dwc, unsigned cmd, u32 param)
 int dwc3_send_gadget_ep_cmd(struct dwc3 *dwc, unsigned ep,
 		unsigned cmd, struct dwc3_gadget_ep_cmd_params *params)
 {
-	u32			timeout = 500;
+	u32			timeout = 50000;
 	u32			reg;
 
 	dwc3_writel(dwc->regs, DWC3_DEPCMDPAR0(ep), params->param0);
@@ -2610,7 +2611,7 @@ int dwc3_gadget_init(struct dwc3 *dwc)
 	if (ret)
 		goto err4;
 
-	ret = usb_add_gadget_udc(dwc->dev, &dwc->gadget);
+	ret = usb_add_gadget_udc((struct device *)dwc->dev, &dwc->gadget);
 	if (ret) {
 		dev_err(dwc->dev, "failed to register udc\n");
 		goto err4;

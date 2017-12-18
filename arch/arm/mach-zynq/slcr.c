@@ -14,8 +14,6 @@
 #define SLCR_LOCK_MAGIC		0x767B
 #define SLCR_UNLOCK_MAGIC	0xDF0D
 
-#define SLCR_QSPI_ENABLE		0x02
-#define SLCR_QSPI_ENABLE_MASK		0x03
 #define SLCR_NAND_L2_SEL		0x10
 #define SLCR_NAND_L2_SEL_MASK		0x1F
 
@@ -41,31 +39,6 @@ struct zynq_slcr_mio_get_status {
 	u32 check_val;
 };
 
-static const int qspi0_pins[] = {
-	1, 2, 3, 4, 5, 6
-};
-
-static const int qspi1_cs_pin[] = {
-	0
-};
-
-static const int qspi1_pins[] = {
-	9, 10, 11, 12, 13
-};
-
-static const int qspi0_dio_pins[] = {
-	1, 2, 3, 6
-};
-
-static const int qspi1_cs_dio_pin[] = {
-	0
-};
-
-static const int qspi1_dio_pins[] = {
-	9, 10, 11
-};
-
-
 static const int nand8_pins[] = {
 	0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13
 };
@@ -83,48 +56,6 @@ static const int usb1_pins[] = {
 };
 
 static const struct zynq_slcr_mio_get_status mio_periphs[] = {
-	{
-		"qspi0",
-		qspi0_pins,
-		ARRAY_SIZE(qspi0_pins),
-		SLCR_QSPI_ENABLE_MASK,
-		SLCR_QSPI_ENABLE,
-	},
-	{
-		"qspi1_cs",
-		qspi1_cs_pin,
-		ARRAY_SIZE(qspi1_cs_pin),
-		SLCR_QSPI_ENABLE_MASK,
-		SLCR_QSPI_ENABLE,
-	},
-	{
-		"qspi1",
-		qspi1_pins,
-		ARRAY_SIZE(qspi1_pins),
-		SLCR_QSPI_ENABLE_MASK,
-		SLCR_QSPI_ENABLE,
-	},
-	{
-		"qspi0_dio",
-		qspi0_dio_pins,
-		ARRAY_SIZE(qspi0_dio_pins),
-		SLCR_QSPI_ENABLE_MASK,
-		SLCR_QSPI_ENABLE,
-	},
-	{
-		"qspi1_cs_dio",
-		qspi1_cs_dio_pin,
-		ARRAY_SIZE(qspi1_cs_dio_pin),
-		SLCR_QSPI_ENABLE_MASK,
-		SLCR_QSPI_ENABLE,
-	},
-	{
-		"qspi1_dio",
-		qspi1_dio_pins,
-		ARRAY_SIZE(qspi1_dio_pins),
-		SLCR_QSPI_ENABLE_MASK,
-		SLCR_QSPI_ENABLE,
-	},
 	{
 		"nand8",
 		nand8_pins,

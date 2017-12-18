@@ -12,7 +12,6 @@
 #include <asm/io.h>
 #include <fdt_support.h>
 #include <libfdt.h>
-#include <fsl_debug_server.h>
 #include <fsl-mc/fsl_mc.h>
 #include <environment.h>
 #include <asm/arch/soc.h>
@@ -42,7 +41,7 @@ void detail_board_ddr_info(void)
 	print_size(gd->bd->bi_dram[0].size + gd->bd->bi_dram[1].size, "");
 	print_ddr_info(0);
 #ifdef CONFIG_SYS_FSL_HAS_DP_DDR
-	if (gd->bd->bi_dram[2].size) {
+	if (soc_has_dp_ddr() && gd->bd->bi_dram[2].size) {
 		puts("\nDP-DDR ");
 		print_size(gd->bd->bi_dram[2].size, "");
 		print_ddr_info(CONFIG_DP_DDR_CTRL);
@@ -60,10 +59,6 @@ int dram_init(void)
 #if defined(CONFIG_ARCH_MISC_INIT)
 int arch_misc_init(void)
 {
-#ifdef CONFIG_FSL_DEBUG_SERVER
-	debug_server_init();
-#endif
-
 	return 0;
 }
 #endif
@@ -87,14 +82,14 @@ void fdt_fixup_board_enet(void *fdt)
 {
 	int offset;
 
-	offset = fdt_path_offset(fdt, "/fsl-mc");
+	offset = fdt_path_offset(fdt, "/soc/fsl-mc");
 
 	/*
 	 * TODO: Remove this when backward compatibility
-	 * with old DT node (fsl,dprc@0) is no longer needed.
+	 * with old DT node (/fsl-mc) is no longer needed.
 	 */
 	if (offset < 0)
-		offset = fdt_path_offset(fdt, "/fsl,dprc@0");
+		offset = fdt_path_offset(fdt, "/fsl-mc");
 
 	if (offset < 0) {
 		printf("%s: ERROR: fsl-mc node not found in device tree (error %d)\n",
@@ -106,6 +101,11 @@ void fdt_fixup_board_enet(void *fdt)
 		fdt_status_okay(fdt, offset);
 	else
 		fdt_status_fail(fdt, offset);
+}
+
+void board_quiesce_devices(void)
+{
+	fsl_mc_ldpaa_exit(gd->bd);
 }
 #endif
 
@@ -127,7 +127,6 @@ int ft_board_setup(void *blob, bd_t *bd)
 
 #ifdef CONFIG_FSL_MC_ENET
 	fdt_fixup_board_enet(blob);
-	fsl_mc_ldpaa_exit(bd);
 #endif
 
 	return 0;

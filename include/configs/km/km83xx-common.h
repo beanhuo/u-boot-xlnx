@@ -8,8 +8,6 @@
 #ifndef __CONFIG_KM83XX_H
 #define __CONFIG_KM83XX_H
 
-#define CONFIG_DISPLAY_BOARDINFO
-
 /* include common defines/options for all Keymile boards */
 #include "keymile-common.h"
 #include "km-powerpc.h"
@@ -150,8 +148,6 @@
 
 #define CONFIG_SYS_NS16550_COM1	(CONFIG_SYS_IMMR+0x4500)
 #define CONFIG_SYS_NS16550_COM2	(CONFIG_SYS_IMMR+0x4600)
-
-#define CONFIG_OF_STDOUT_VIA_ALIAS
 
 /*
  * QE UEC ethernet configuration

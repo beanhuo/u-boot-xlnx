@@ -199,7 +199,7 @@ static int usb_kbd_translate(struct usb_kbd_pdata *data, unsigned char scancode,
 		}
 	}
 
-	if ((scancode > 0x1d) && (scancode < 0x3a)) {
+	if ((scancode > 0x1d) && (scancode < 0x39)) {
 		/* Shift pressed */
 		if (modifier & (LEFT_SHIFT | RIGHT_SHIFT))
 			keycode = usb_kbd_numkey_shifted[scancode - 0x1e];
@@ -566,12 +566,11 @@ int drv_usb_kbd_init(void)
 	/* No USB Keyboard found */
 	return -1;
 }
-#endif
 
 /* Deregister the keyboard. */
 int usb_kbd_deregister(int force)
 {
-#ifdef CONFIG_SYS_STDIO_DEREGISTER
+#if CONFIG_IS_ENABLED(SYS_STDIO_DEREGISTER)
 	struct stdio_dev *dev;
 	struct usb_device *usb_kbd_dev;
 	struct usb_kbd_pdata *data;
@@ -599,16 +598,15 @@ int usb_kbd_deregister(int force)
 #endif
 }
 
+#endif
+
 #ifdef CONFIG_DM_USB
 
 static int usb_kbd_probe(struct udevice *dev)
 {
 	struct usb_device *udev = dev_get_parent_priv(dev);
-	int ret;
 
-	ret = probe_usb_keyboard(udev);
-
-	return ret;
+	return probe_usb_keyboard(udev);
 }
 
 static int usb_kbd_remove(struct udevice *dev)

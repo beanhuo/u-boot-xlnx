@@ -17,7 +17,6 @@
  * High Level Configuration Options
  */
 #define CONFIG_MPC5200
-#define CONFIG_DISPLAY_BOARDINFO
 
 #define CONFIG_SYS_MPC5XXX_CLKIN	33000000 /* running at 33.000000MHz */
 
@@ -50,8 +49,6 @@
  * 0x40000000 - 0x4fffffff - PCI Memory
  * 0x50000000 - 0x50ffffff - PCI IO Space
  */
-#undef CONFIG_PCI
-#define CONFIG_PCI_PNP		1
 
 #define CONFIG_PCI_MEM_BUS	0x40000000
 #define CONFIG_PCI_MEM_PHYS	CONFIG_PCI_MEM_BUS
@@ -76,11 +73,6 @@
  * Supported commands
  */
 #define CONFIG_CMD_EEPROM
-#define CONFIG_CMD_FAT
-#define CONFIG_CMD_I2C
-#define CONFIG_CMD_MII
-#define CONFIG_CMD_PING
-#define CONFIG_CMD_DHCP
 #ifdef CONFIG_PCI
 #define CONFIG_CMD_PCI
 #endif
@@ -95,14 +87,13 @@
 #error "CONFIG_SYS_TEXT_BASE value is invalid"
 #endif
 
-#define CONFIG_BOOTDELAY	5	/* autoboot after 5 seconds */
 
 #define CONFIG_PREBOOT	"run master"
 
 #undef	CONFIG_BOOTARGS
 
-#if !defined(CONFIG_CONSOLE_DEV)
-#define CONFIG_CONSOLE_DEV	"ttyPSC1"
+#if !defined(CONSOLE_DEV)
+#define CONSOLE_DEV	"ttyPSC1"
 #endif
 
 /*
@@ -137,7 +128,7 @@
 	"addmem=setenv bootargs ${bootargs} ${memlimit}\0"		\
 	"addmisc=sete bootargs ${bootargs} ${miscargs}\0"		\
 	"addtty=sete bootargs ${bootargs} console="			\
-		CONFIG_CONSOLE_DEV ",${baudrate}\0"			\
+		CONSOLE_DEV ",${baudrate}\0"			\
 	"bootfile="CONFIG_BOARD_NAME"/uImage_"CONFIG_BOARD_NAME"_act\0"	\
 	"kernel_addr_r=600000\0"					\
 	"initrd_high=0x03e00000\0"					\
@@ -253,13 +244,13 @@
 #define CONFIG_SYS_INIT_RAM_ADDR	MPC5XXX_SRAM
 #ifdef CONFIG_POST
 /* preserve space for the post_word at end of on-chip SRAM */
-#define CONFIG_SYS_INIT_RAM_END		MPC5XXX_SRAM_POST_SIZE
+#define CONFIG_SYS_INIT_RAM_SIZE	MPC5XXX_SRAM_POST_SIZE
 #else
 /* End of used area in DPRAM */
-#define CONFIG_SYS_INIT_RAM_END		MPC5XXX_SRAM_SIZE
+#define CONFIG_SYS_INIT_RAM_SIZE	MPC5XXX_SRAM_SIZE
 #endif
 
-#define CONFIG_SYS_GBL_DATA_OFFSET	(CONFIG_SYS_INIT_RAM_END - \
+#define CONFIG_SYS_GBL_DATA_OFFSET	(CONFIG_SYS_INIT_RAM_SIZE - \
 					 GENERATED_GBL_DATA_SIZE)
 #define CONFIG_SYS_INIT_SP_OFFSET	CONFIG_SYS_GBL_DATA_OFFSET
 
@@ -293,7 +284,6 @@
  */
 #define CONFIG_SYS_LONGHELP			/* undef to save memory	    */
 #define CONFIG_CMDLINE_EDITING
-#define CONFIG_SYS_HUSH_PARSER
 
 #if defined(CONFIG_CMD_KGDB)
 #define CONFIG_SYS_CBSIZE		1024	/* Console I/O Buffer Size  */
@@ -332,9 +322,6 @@
 /*
  * DT support
  */
-#define CONFIG_OF_LIBFDT	1
-#define CONFIG_OF_BOARD_SETUP	1
-
 #define OF_CPU			"PowerPC,5200@0"
 #define OF_SOC			"soc5200@f0000000"
 #define OF_TBCLK		(bd->bi_busfreq / 4)

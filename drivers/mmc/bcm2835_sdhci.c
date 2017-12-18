@@ -157,7 +157,7 @@ int bcm2835_sdhci_init(u32 regbase, u32 emmc_freq)
 	bcm_host = calloc(1, sizeof(*bcm_host));
 	if (!bcm_host) {
 		printf("sdhci_host calloc fail!\n");
-		return 1;
+		return -ENOMEM;
 	}
 
 	/*
@@ -178,13 +178,12 @@ int bcm2835_sdhci_init(u32 regbase, u32 emmc_freq)
 
 	host = &bcm_host->host;
 	host->name = "bcm2835_sdhci";
-	host->ioaddr = (void *)regbase;
+	host->ioaddr = (void *)(unsigned long)regbase;
 	host->quirks = SDHCI_QUIRK_BROKEN_VOLTAGE | SDHCI_QUIRK_BROKEN_R1B |
 		SDHCI_QUIRK_WAIT_SEND_CMD | SDHCI_QUIRK_NO_HISPD_BIT;
 	host->voltages = MMC_VDD_32_33 | MMC_VDD_33_34 | MMC_VDD_165_195;
 	host->ops = &bcm2835_ops;
 
-	host->version = sdhci_readw(host, SDHCI_HOST_VERSION);
 	add_sdhci(host, emmc_freq, MIN_FREQ);
 
 	return 0;

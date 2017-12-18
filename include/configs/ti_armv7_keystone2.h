@@ -15,12 +15,13 @@
 /* U-Boot Build Configuration */
 #define CONFIG_SKIP_LOWLEVEL_INIT	/* U-Boot is a 2nd stage loader */
 #define CONFIG_BOARD_EARLY_INIT_F
-#define CONFIG_DISPLAY_CPUINFO
 
 /* SoC Configuration */
 #define CONFIG_ARCH_CPU_INIT
 #define CONFIG_SYS_ARCH_TIMER
+#ifndef CONFIG_SYS_TEXT_BASE
 #define CONFIG_SYS_TEXT_BASE		0x0c000000
+#endif
 #define CONFIG_SPL_TARGET		"u-boot-spi.gph"
 #define CONFIG_SYS_DCACHE_OFF
 
@@ -52,8 +53,6 @@
 					CONFIG_SYS_SPL_MALLOC_SIZE + \
 					SPL_MALLOC_F_SIZE + \
 					CONFIG_SPL_STACK_SIZE - 4)
-#define CONFIG_SPL_SPI_FLASH_SUPPORT
-#define CONFIG_SPL_SPI_SUPPORT
 #define CONFIG_SPL_SPI_LOAD
 #define CONFIG_SYS_SPI_U_BOOT_OFFS	CONFIG_SPL_PAD_TO
 
@@ -68,14 +67,14 @@
 #define CONFIG_CONS_INDEX		1
 
 #ifndef CONFIG_SOC_K2G
-#define CONFIG_SYS_NS16550_CLK		clk_get_rate(KS2_CLK1_6)
+#define CONFIG_SYS_NS16550_CLK		ks_clk_get_rate(KS2_CLK1_6)
 #else
-#define CONFIG_SYS_NS16550_CLK		clk_get_rate(uart_pll_clk) / 2
+#define CONFIG_SYS_NS16550_CLK		ks_clk_get_rate(uart_pll_clk) / 2
 #endif
 
 /* SPI Configuration */
 #define CONFIG_DAVINCI_SPI
-#define CONFIG_SYS_SPI_CLK		clk_get_rate(KS2_CLK1_6)
+#define CONFIG_SYS_SPI_CLK		ks_clk_get_rate(KS2_CLK1_6)
 #define CONFIG_SF_DEFAULT_SPEED		30000000
 #define CONFIG_ENV_SPI_MAX_HZ		CONFIG_SF_DEFAULT_SPEED
 #define CONFIG_SYS_SPI0
@@ -87,6 +86,10 @@
 #define CONFIG_SYS_SPI2
 #define CONFIG_SYS_SPI2_BASE		KS2_SPI2_BASE
 #define CONFIG_SYS_SPI2_NUM_CS		4
+#ifdef CONFIG_SPL_BUILD
+#undef CONFIG_DM_SPI
+#undef CONFIG_DM_SPI_FLASH
+#endif
 
 /* Network Configuration */
 #define CONFIG_PHYLIB
@@ -143,8 +146,6 @@
 /* SerDes */
 #define CONFIG_TI_KEYSTONE_SERDES
 
-/* AEMIF */
-#define CONFIG_TI_AEMIF
 #define CONFIG_AEMIF_CNTRL_BASE		KS2_AEMIF_CNTRL_BASE
 
 /* I2C Configuration */
@@ -191,28 +192,19 @@
 					"-(ubifs)"
 
 /* USB Configuration */
-#define CONFIG_USB_XHCI
-#define CONFIG_USB_XHCI_DWC3
 #define CONFIG_USB_XHCI_KEYSTONE
 #define CONFIG_SYS_USB_XHCI_MAX_ROOT_PORTS	2
 #define CONFIG_EFI_PARTITION
 #define CONFIG_FS_FAT
-#define CONFIG_SYS_CACHELINE_SIZE		64
 #define CONFIG_USB_SS_BASE			KS2_USB_SS_BASE
 #define CONFIG_USB_HOST_XHCI_BASE		KS2_USB_HOST_XHCI_BASE
 #define CONFIG_DEV_USB_PHY_BASE			KS2_DEV_USB_PHY_BASE
 #define CONFIG_USB_PHY_CFG_BASE			KS2_USB_PHY_CFG_BASE
 
 /* U-Boot command configuration */
-#define CONFIG_CMD_DHCP
-#define CONFIG_CMD_PING
 #define CONFIG_CMD_SAVES
-#define CONFIG_CMD_NAND
-#define CONFIG_CMD_UBI
 #define CONFIG_CMD_UBIFS
-#define CONFIG_CMD_SF
 #define CONFIG_CMD_EEPROM
-#define CONFIG_CMD_USB
 
 /* U-Boot general configuration */
 #define CONFIG_MISC_INIT_R
@@ -223,30 +215,58 @@
 /* EDMA3 */
 #define CONFIG_TI_EDMA3
 
+#define DEFAULT_FW_INITRAMFS_BOOT_ENV					\
+	"name_fw_rd=k2-fw-initrd.cpio.gz\0"				\
+	"set_rd_spec=setenv rd_spec ${rdaddr}:${filesize}\0"		\
+	"init_fw_rd_net=dhcp ${rdaddr} ${tftp_root}/${name_fw_rd}; "	\
+		"run set_rd_spec\0"					\
+	"init_fw_rd_nfs=nfs ${rdaddr} ${nfs_root}/boot/${name_fw_rd}; "	\
+		"run set_rd_spec\0"					\
+	"init_fw_rd_ramfs=setenv rd_spec -\0"				\
+	"init_fw_rd_ubi=ubifsload ${rdaddr} ${bootdir}/${name_fw_rd}; "	\
+		"run set_rd_spec\0"					\
+
+#define DEFAULT_PMMC_BOOT_ENV						\
+	"set_name_pmmc=setenv name_pmmc ti-sci-firmware-${soc_variant}.bin\0" \
+	"dev_pmmc=0\0"							\
+	"get_pmmc_net=dhcp ${loadaddr} ${tftp_root}/${name_pmmc}\0"	\
+	"get_pmmc_nfs=nfs ${loadaddr} ${nfs_root}/boot/${name_pmmc}\0"	\
+	"get_pmmc_ramfs=run get_pmmc_net\0"				\
+	"get_pmmc_mmc=load mmc ${bootpart} ${loadaddr} "		\
+			"${bootdir}/${name_pmmc}\0"			\
+	"get_pmmc_ubi=ubifsload ${loadaddr} ${bootdir}/${name_pmmc}\0"	\
+	"run_pmmc=rproc init; rproc list; "				\
+		"rproc load ${dev_pmmc} ${loadaddr} 0x${filesize}; "	\
+		"rproc start ${dev_pmmc}\0"				\
+
 #define CONFIG_EXTRA_ENV_SETTINGS					\
 	DEFAULT_LINUX_BOOT_ENV						\
 	CONFIG_EXTRA_ENV_KS2_BOARD_SETTINGS				\
-	"boot=ubi\0"							\
+	"bootdir=/boot\0" \
 	"tftp_root=/\0"							\
 	"nfs_root=/export\0"						\
 	"mem_lpae=1\0"							\
-	"mem_reserve=512M\0"						\
 	"addr_ubi=0x82000000\0"						\
 	"addr_secdb_key=0xc000000\0"					\
 	"name_kern=zImage\0"						\
+	"addr_mon=0x87000000\0"						\
 	"run_mon=mon_install ${addr_mon}\0"				\
-	"run_kern=bootz ${loadaddr} - ${fdtaddr}\0"			\
+	"run_kern=bootz ${loadaddr} ${rd_spec} ${fdtaddr}\0"		\
 	"init_net=run args_all args_net\0"				\
+	"init_nfs=setenv autoload no; dhcp; run args_all args_net\0"	\
 	"init_ubi=run args_all args_ubi; "				\
-		"ubi part ubifs; ubifsmount ubi:boot;"			\
-		"ubifsload ${addr_secdb_key} securedb.key.bin;\0"       \
+		"ubi part ubifs; ubifsmount ubi:rootfs;\0"			\
 	"get_fdt_net=dhcp ${fdtaddr} ${tftp_root}/${name_fdt}\0"	\
-	"get_fdt_ubi=ubifsload ${fdtaddr} ${name_fdt}\0"		\
+	"get_fdt_nfs=nfs ${fdtaddr} ${nfs_root}/boot/${name_fdt}\0"	\
+	"get_fdt_ubi=ubifsload ${fdtaddr} ${bootdir}/${name_fdt}\0"		\
 	"get_kern_net=dhcp ${loadaddr} ${tftp_root}/${name_kern}\0"	\
-	"get_kern_ubi=ubifsload ${loadaddr} ${name_kern}\0"		\
+	"get_kern_nfs=nfs ${loadaddr} ${nfs_root}/boot/${name_kern}\0"	\
+	"get_kern_ubi=ubifsload ${loadaddr} ${bootdir}/${name_kern}\0"		\
 	"get_mon_net=dhcp ${addr_mon} ${tftp_root}/${name_mon}\0"	\
-	"get_mon_ubi=ubifsload ${addr_mon} ${name_mon}\0"		\
+	"get_mon_nfs=nfs ${addr_mon} ${nfs_root}/boot/${name_mon}\0"	\
+	"get_mon_ubi=ubifsload ${addr_mon} ${bootdir}/${name_mon}\0"		\
 	"get_uboot_net=dhcp ${loadaddr} ${tftp_root}/${name_uboot}\0"	\
+	"get_uboot_nfs=nfs ${loadaddr} ${nfs_root}/boot/${name_uboot}\0" \
 	"burn_uboot_spi=sf probe; sf erase 0 0x80000; "		\
 		"sf write ${loadaddr} 0 ${filesize}\0"		\
 	"burn_uboot_nand=nand erase 0 0x100000; "			\
@@ -261,6 +281,7 @@
 	"get_mon_ramfs=dhcp ${addr_mon} ${tftp_root}/${name_mon}\0"	\
 	"get_fs_ramfs=dhcp ${rdaddr} ${tftp_root}/${name_fs}\0"	\
 	"get_ubi_net=dhcp ${addr_ubi} ${tftp_root}/${name_ubi}\0"	\
+	"get_ubi_nfs=nfs ${addr_ubi} ${nfs_root}/boot/${name_ubi}\0"	\
 	"burn_ubi=nand erase.part ubifs; "				\
 		"nand write ${addr_ubi} ubifs ${filesize}\0"		\
 	"init_ramfs=run args_all args_ramfs get_fs_ramfs\0"		\
@@ -271,38 +292,29 @@
 	"mtdparts=mtdparts=davinci_nand.0:"				\
 		"1024k(bootloader)ro,512k(params)ro,-(ubifs)\0"
 
+#ifndef CONFIG_BOOTCOMMAND
 #define CONFIG_BOOTCOMMAND						\
-	"run init_${boot} get_fdt_${boot} get_mon_${boot} "		\
-		"get_kern_${boot} run_mon run_kern"
+	"run init_${boot} get_mon_${boot} run_mon init_fw_rd_${boot} "	\
+	"get_fdt_${boot} get_kern_${boot} run_kern"
+#endif
 
 #define CONFIG_BOOTARGS							\
-
-/* Linux interfacing */
-#define CONFIG_OF_BOARD_SETUP
 
 /* Now for the remaining common defines */
 #include <configs/ti_armv7_common.h>
 
 /* We wont be loading up OS from SPL for now.. */
-#undef CONFIG_SPL_OS_BOOT
 
 /* We do not have MMC support.. yet.. */
-#undef CONFIG_SPL_LIBDISK_SUPPORT
-#undef CONFIG_SPL_MMC_SUPPORT
-#undef CONFIG_SPL_FAT_SUPPORT
-#undef CONFIG_SPL_EXT_SUPPORT
-#undef CONFIG_MMC
 #undef CONFIG_GENERIC_MMC
-#undef CONFIG_CMD_MMC
 
 /* And no support for GPIO, yet.. */
-#undef CONFIG_SPL_GPIO_SUPPORT
 
 /* we may include files below only after all above definitions */
 #include <asm/arch/hardware.h>
 #include <asm/arch/clock.h>
 #ifndef CONFIG_SOC_K2G
-#define CONFIG_SYS_HZ_CLOCK		clk_get_rate(KS2_CLK1_6)
+#define CONFIG_SYS_HZ_CLOCK		ks_clk_get_rate(KS2_CLK1_6)
 #else
 #define CONFIG_SYS_HZ_CLOCK		external_clk[sys_clk]
 #endif

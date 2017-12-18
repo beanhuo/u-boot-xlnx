@@ -1,19 +1,23 @@
 /*
- * Copyright (C) 2015 Masahiro Yamada <yamada.masahiro@socionext.com>
+ * Copyright (C) 2015-2016 Socionext Inc.
+ *   Author: Masahiro Yamada <yamada.masahiro@socionext.com>
  *
  * SPDX-License-Identifier:	GPL-2.0+
  */
 
-#include <common.h>
-#include <mapmem.h>
 #include <linux/io.h>
 #include <linux/err.h>
+#include <linux/sizes.h>
 #include <dm/device.h>
 #include <dm/pinctrl.h>
 
 #include "pinctrl-uniphier.h"
 
-DECLARE_GLOBAL_DATA_PTR;
+#define UNIPHIER_PINCTRL_PINMUX_BASE	0x1000
+#define UNIPHIER_PINCTRL_LOAD_PINMUX	0x1700
+#define UNIPHIER_PINCTRL_IECTRL		0x1d00
+
+static const char *uniphier_pinctrl_dummy_name = "_dummy";
 
 static int uniphier_pinctrl_get_groups_count(struct udevice *dev)
 {
@@ -26,6 +30,9 @@ static const char *uniphier_pinctrl_get_group_name(struct udevice *dev,
 						   unsigned selector)
 {
 	struct uniphier_pinctrl_priv *priv = dev_get_priv(dev);
+
+	if (!priv->socdata->groups[selector].name)
+		return uniphier_pinctrl_dummy_name;
 
 	return priv->socdata->groups[selector].name;
 }
@@ -42,10 +49,29 @@ static const char *uniphier_pinmux_get_function_name(struct udevice *dev,
 {
 	struct uniphier_pinctrl_priv *priv = dev_get_priv(dev);
 
+	if (!priv->socdata->functions[selector])
+		return uniphier_pinctrl_dummy_name;
+
 	return priv->socdata->functions[selector];
 }
 
-static void uniphier_pinconf_input_enable(struct udevice *dev, unsigned pin)
+static void uniphier_pinconf_input_enable_perpin(struct udevice *dev,
+						 unsigned pin)
+{
+	struct uniphier_pinctrl_priv *priv = dev_get_priv(dev);
+	unsigned reg;
+	u32 mask, tmp;
+
+	reg = UNIPHIER_PINCTRL_IECTRL + pin / 32 * 4;
+	mask = BIT(pin % 32);
+
+	tmp = readl(priv->base + reg);
+	tmp |= mask;
+	writel(tmp, priv->base + reg);
+}
+
+static void uniphier_pinconf_input_enable_legacy(struct udevice *dev,
+						 unsigned pin)
 {
 	struct uniphier_pinctrl_priv *priv = dev_get_priv(dev);
 	int pins_count = priv->socdata->pins_count;
@@ -65,14 +91,45 @@ static void uniphier_pinconf_input_enable(struct udevice *dev, unsigned pin)
 	}
 }
 
-static void uniphier_pinmux_set_one(struct udevice *dev, unsigned pin,
-				    unsigned muxval)
+static void uniphier_pinconf_input_enable(struct udevice *dev, unsigned pin)
 {
 	struct uniphier_pinctrl_priv *priv = dev_get_priv(dev);
-	unsigned mux_bits = priv->socdata->mux_bits;
-	unsigned reg_stride = priv->socdata->reg_stride;
+
+	if (priv->socdata->caps & UNIPHIER_PINCTRL_CAPS_PERPIN_IECTRL)
+		uniphier_pinconf_input_enable_perpin(dev, pin);
+	else
+		uniphier_pinconf_input_enable_legacy(dev, pin);
+}
+
+static void uniphier_pinmux_set_one(struct udevice *dev, unsigned pin,
+				    int muxval)
+{
+	struct uniphier_pinctrl_priv *priv = dev_get_priv(dev);
 	unsigned reg, reg_end, shift, mask;
+	unsigned mux_bits = 8;
+	unsigned reg_stride = 4;
+	bool load_pinctrl = false;
 	u32 tmp;
+
+	/* some pins need input-enabling */
+	uniphier_pinconf_input_enable(dev, pin);
+
+	if (muxval < 0)
+		return;		/* dedicated pin; nothing to do for pin-mux */
+
+	if (priv->socdata->caps & UNIPHIER_PINCTRL_CAPS_MUX_4BIT)
+		mux_bits = 4;
+
+	if (priv->socdata->caps & UNIPHIER_PINCTRL_CAPS_DBGMUX_SEPARATE) {
+		/*
+		 *  Mode       offset        bit
+		 *  Normal     4 * n     shift+3:shift
+		 *  Debug      4 * n     shift+7:shift+4
+		 */
+		mux_bits /= 2;
+		reg_stride = 8;
+		load_pinctrl = true;
+	}
 
 	reg = UNIPHIER_PINCTRL_PINMUX_BASE + pin * mux_bits / 32 * reg_stride;
 	reg_end = reg + reg_stride;
@@ -92,11 +149,8 @@ static void uniphier_pinmux_set_one(struct udevice *dev, unsigned pin,
 		muxval >>= mux_bits;
 	}
 
-	if (priv->socdata->load_pinctrl)
+	if (load_pinctrl)
 		writel(1, priv->base + UNIPHIER_PINCTRL_LOAD_PINMUX);
-
-	/* some pins need input-enabling */
-	uniphier_pinconf_input_enable(dev, pin);
 }
 
 static int uniphier_pinmux_group_set(struct udevice *dev,
@@ -128,27 +182,16 @@ int uniphier_pinctrl_probe(struct udevice *dev,
 {
 	struct uniphier_pinctrl_priv *priv = dev_get_priv(dev);
 	fdt_addr_t addr;
-	fdt_size_t size;
 
-	addr = fdtdec_get_addr_size(gd->fdt_blob, dev->of_offset, "reg",
-				    &size);
+	addr = dev_get_addr(dev->parent);
 	if (addr == FDT_ADDR_T_NONE)
 		return -EINVAL;
 
-	priv->base = map_sysmem(addr, size);
+	priv->base = devm_ioremap(dev, addr, SZ_4K);
 	if (!priv->base)
 		return -ENOMEM;
 
 	priv->socdata = socdata;
-
-	return 0;
-}
-
-int uniphier_pinctrl_remove(struct udevice *dev)
-{
-	struct uniphier_pinctrl_priv *priv = dev_get_priv(dev);
-
-	unmap_sysmem(priv->base);
 
 	return 0;
 }

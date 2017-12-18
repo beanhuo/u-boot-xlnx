@@ -1,14 +1,16 @@
 /*
- * Copyright (C) 2012-2015 Masahiro Yamada <yamada.masahiro@socionext.com>
+ * Copyright (C) 2012-2015 Panasonic Corporation
+ * Copyright (C) 2015-2016 Socionext Inc.
+ *   Author: Masahiro Yamada <yamada.masahiro@socionext.com>
  *
  * SPDX-License-Identifier:	GPL-2.0+
  */
 
 #include <linux/io.h>
 #include <linux/serial_reg.h>
-#include <asm/errno.h>
+#include <linux/sizes.h>
+#include <linux/errno.h>
 #include <dm/device.h>
-#include <mapmem.h>
 #include <serial.h>
 #include <fdtdec.h>
 
@@ -91,12 +93,13 @@ static int uniphier_serial_probe(struct udevice *dev)
 	struct uniphier_serial_private_data *priv = dev_get_priv(dev);
 	struct uniphier_serial __iomem *port;
 	fdt_addr_t base;
-	fdt_size_t size;
 	u32 tmp;
 
-	base = fdtdec_get_addr_size(gd->fdt_blob, dev->of_offset, "reg", &size);
+	base = dev_get_addr(dev);
+	if (base == FDT_ADDR_T_NONE)
+		return -EINVAL;
 
-	port = map_sysmem(base, size);
+	port = devm_ioremap(dev, base, SZ_64);
 	if (!port)
 		return -ENOMEM;
 
@@ -109,13 +112,6 @@ static int uniphier_serial_probe(struct udevice *dev)
 	tmp &= ~LCR_MASK;
 	tmp |= UART_LCR_WLEN8 << LCR_SHIFT;
 	writel(tmp, &port->lcr_mcr);
-
-	return 0;
-}
-
-static int uniphier_serial_remove(struct udevice *dev)
-{
-	unmap_sysmem(uniphier_serial_port(dev));
 
 	return 0;
 }
@@ -137,7 +133,6 @@ U_BOOT_DRIVER(uniphier_serial) = {
 	.id = UCLASS_SERIAL,
 	.of_match = uniphier_uart_of_match,
 	.probe = uniphier_serial_probe,
-	.remove = uniphier_serial_remove,
 	.priv_auto_alloc_size = sizeof(struct uniphier_serial_private_data),
 	.ops = &uniphier_serial_ops,
 };

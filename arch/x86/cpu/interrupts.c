@@ -12,16 +12,17 @@
  */
 
 #include <common.h>
+#include <dm.h>
 #include <asm/cache.h>
 #include <asm/control_regs.h>
+#include <asm/i8259.h>
 #include <asm/interrupt.h>
 #include <asm/io.h>
-#include <asm/processor-flags.h>
-#include <linux/compiler.h>
+#include <asm/lapic.h>
 #include <asm/msr.h>
+#include <asm/processor-flags.h>
 #include <asm/processor.h>
 #include <asm/u-boot-x86.h>
-#include <asm/i8259.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -181,8 +182,8 @@ static inline void load_idt(const struct desc_ptr *dtr)
 
 void set_vector(u8 intnum, void *routine)
 {
-	idt[intnum].base_high = (u16)((u32)(routine) >> 16);
-	idt[intnum].base_low = (u16)((u32)(routine) & 0xffff);
+	idt[intnum].base_high = (u16)((ulong)(routine) >> 16);
+	idt[intnum].base_low = (u16)((ulong)(routine) & 0xffff);
 }
 
 /*
@@ -237,13 +238,24 @@ int disable_interrupts(void)
 {
 	long flags;
 
+#ifdef CONFIG_X86_64
+	asm volatile ("pushfq ; popq %0 ; cli\n" : "=g" (flags) : );
+#else
 	asm volatile ("pushfl ; popl %0 ; cli\n" : "=g" (flags) : );
-
+#endif
 	return flags & X86_EFLAGS_IF;
 }
 
 int interrupt_init(void)
 {
+	struct udevice *dev;
+	int ret;
+
+	/* Try to set up the interrupt router, but don't require one */
+	ret = uclass_first_device_err(UCLASS_IRQ, &dev);
+	if (ret && ret != -ENODEV)
+		return ret;
+
 	/*
 	 * When running as an EFI application we are not in control of
 	 * interrupts and should leave them alone.
@@ -256,6 +268,8 @@ int interrupt_init(void)
 	/* Initialize the master/slave i8259 pic */
 	i8259_init();
 #endif
+
+	lapic_setup();
 
 	/* Initialize core interrupt and exception functionality of CPU */
 	cpu_init_interrupts();

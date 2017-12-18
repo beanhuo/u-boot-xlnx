@@ -11,6 +11,7 @@
 #include <console.h>
 #include <image.h>
 #include <malloc.h>
+#include <memalign.h>
 #include <u-boot/zlib.h>
 #include <div64.h>
 
@@ -70,6 +71,7 @@ int gunzip(void *dst, int dstlen, unsigned char *src, unsigned long *lenp)
 	return zunzip(dst, dstlen, src, lenp, 1, i);
 }
 
+#ifdef CONFIG_CMD_UNZIP
 __weak
 void gzwrite_progress_init(u64 expectedsize)
 {
@@ -104,7 +106,7 @@ void gzwrite_progress_finish(int returnval,
 }
 
 int gzwrite(unsigned char *src, int len,
-	    struct block_dev_desc *dev,
+	    struct blk_desc *dev,
 	    unsigned long szwritebuf,
 	    u64 startoffs,
 	    u64 szexpected)
@@ -192,7 +194,7 @@ int gzwrite(unsigned char *src, int len,
 
 	s.next_in = src + i;
 	s.avail_in = payload_size+8;
-	writebuf = (unsigned char *)malloc(szwritebuf);
+	writebuf = (unsigned char *)malloc_cache_aligned(szwritebuf);
 
 	/* decompress until deflate stream ends or end of file */
 	do {
@@ -231,10 +233,8 @@ int gzwrite(unsigned char *src, int len,
 			gzwrite_progress(iteration++,
 					 totalfilled,
 					 szexpected);
-			blocks_written = dev->block_write(dev->dev,
-							  outblock,
-							  writeblocks,
-							  writebuf);
+			blocks_written = blk_dwrite(dev, outblock,
+						    writeblocks, writebuf);
 			outblock += blocks_written;
 			if (ctrlc()) {
 				puts("abort\n");
@@ -259,6 +259,7 @@ out:
 
 	return r;
 }
+#endif
 
 /*
  * Uncompress blocks compressed with zlib without headers
@@ -285,12 +286,11 @@ int zunzip(void *dst, int dstlen, unsigned char *src, unsigned long *lenp,
 	do {
 		r = inflate(&s, Z_FINISH);
 		if (stoponerr == 1 && r != Z_STREAM_END &&
-		    (s.avail_out == 0 || r != Z_BUF_ERROR)) {
+		    (s.avail_in == 0 || s.avail_out == 0 || r != Z_BUF_ERROR)) {
 			printf("Error: inflate() returned %d\n", r);
 			err = -1;
 			break;
 		}
-		s.avail_in = *lenp - offset - (int)(s.next_out - (unsigned char*)dst);
 	} while (r == Z_BUF_ERROR);
 	*lenp = s.next_out - (unsigned char *) dst;
 	inflateEnd(&s);

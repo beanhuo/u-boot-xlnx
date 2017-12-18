@@ -12,17 +12,11 @@
 #define __CONFIG_H
 
 /*
- * Liebherr extra version info
- */
-#define CONFIG_IDENT_STRING	" - v2.0"
-
-/*
  * High Level Configuration Options
  */
 #define CONFIG_LWMON5		1		/* Board is lwmon5	*/
 #define CONFIG_440EPX		1		/* Specific PPC440EPx	*/
 #define CONFIG_440		1		/* ... PPC440 family	*/
-
 
 #define CONFIG_SYS_TEXT_BASE	0xFFF80000
 #define CONFIG_HOSTNAME		lwmon5
@@ -261,7 +255,6 @@
 /* Reserve GPT0_COMP1-COMP5 for logbuffer header */
 #define CONFIG_ALT_LH_ADDR	(CONFIG_SYS_PERIPHERAL_BASE + GPT0_COMP1)
 #define CONFIG_ALT_LB_ADDR	(CONFIG_SYS_OCM_BASE)
-#define CONFIG_SYS_CONSOLE_IS_IN_ENV /* Otherwise it catches logbuffer as output */
 
 /*
  * I2C
@@ -300,15 +293,8 @@
 					 CONFIG_SYS_I2C_DSPIC_KEYB_ADDR,\
 					 CONFIG_SYS_I2C_DSPIC_IO_ADDR }
 
-/*
- * Pass open firmware flat tree
- */
-#define CONFIG_OF_LIBFDT
-#define CONFIG_OF_BOARD_SETUP
 /* Update size in "reg" property of NOR FLASH device tree nodes */
 #define CONFIG_FDT_FIXUP_NOR_FLASH_SIZE
-
-#define CONFIG_FIT			/* enable FIT image support	*/
 
 #define	CONFIG_POST_KEY_MAGIC	"3C+3E"	/* press F3 + F5 keys to force POST */
 
@@ -348,7 +334,6 @@
 	""
 #define CONFIG_BOOTCOMMAND	"run flash_self"
 
-#define CONFIG_BOOTDELAY	5	/* autoboot after 5 seconds	*/
 
 #define CONFIG_LOADS_ECHO	1	/* echo on for serial download	*/
 #define CONFIG_SYS_LOADS_BAUD_CHANGE	1	/* allow baudrate change	*/
@@ -368,17 +353,12 @@
 #define CONFIG_PHY1_ADDR	1
 
 /* Video console */
-#define CONFIG_VIDEO
 #define CONFIG_VIDEO_MB862xx
 #define CONFIG_VIDEO_MB862xx_ACCEL
-#define CONFIG_CFB_CONSOLE
 #define CONFIG_VIDEO_LOGO
-#define CONFIG_CONSOLE_EXTRA_INFO
 #define VIDEO_FB_16BPP_PIXEL_SWAP
 #define VIDEO_FB_16BPP_WORD_SWAP
 
-#define CONFIG_VGA_AS_SINGLE_DEVICE
-#define CONFIG_VIDEO_SW_CURSOR
 #define CONFIG_SPLASH_SCREEN
 
 /*
@@ -390,7 +370,6 @@
 #define CONFIG_EHCI_MMIO_BIG_ENDIAN
 #define CONFIG_EHCI_DESC_BIG_ENDIAN
 #define CONFIG_EHCI_HCD_INIT_AFTER_RESET /* re-init HCD after CMD_RESET */
-#define CONFIG_USB_STORAGE
 
 /* Partitions */
 #define CONFIG_MAC_PARTITION
@@ -408,16 +387,10 @@
 /*
  * Command line configuration.
  */
-#define CONFIG_CMD_ASKENV
 #define CONFIG_CMD_DATE
-#define CONFIG_CMD_DHCP
 #define CONFIG_CMD_DIAG
 #define CONFIG_CMD_EEPROM
-#define CONFIG_CMD_FAT
-#define CONFIG_CMD_I2C
 #define CONFIG_CMD_IRQ
-#define CONFIG_CMD_MII
-#define CONFIG_CMD_PING
 #define CONFIG_CMD_REGINFO
 #define CONFIG_CMD_SDRAM
 
@@ -426,7 +399,6 @@
 #endif
 
 #ifdef CONFIG_440EPX
-#define CONFIG_CMD_USB
 #endif
 
 /*
@@ -435,8 +407,6 @@
 #define CONFIG_SUPPORT_VFAT
 
 #define CONFIG_SYS_LONGHELP			/* undef to save memory		*/
-
-#define CONFIG_SYS_HUSH_PARSER		1	/* Use the HUSH parser		*/
 
 #if defined(CONFIG_CMD_KGDB)
 #define CONFIG_SYS_CBSIZE	        1024	/* Console I/O Buffer Size	*/
@@ -454,11 +424,7 @@
 #define CONFIG_SYS_EXTBDINFO		1	/* To use extended board_into (bd_t) */
 
 #define CONFIG_CMDLINE_EDITING	1	/* add command line history	*/
-#define CONFIG_LOOPW            1       /* enable loopw command         */
 #define CONFIG_MX_CYCLIC        1       /* enable mdc/mwc commands      */
-#define CONFIG_VERSION_VARIABLE 1	/* include version env variable */
-
-#define CONFIG_SYS_CONSOLE_INFO_QUIET	/* don't print console @ startup*/
 
 #ifndef DEBUG
 #define CONFIG_HW_WATCHDOG	1	/* Use external HW-Watchdog	*/

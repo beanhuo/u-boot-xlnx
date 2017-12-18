@@ -35,7 +35,6 @@
 /*
  * High Level Configuration Options
  */
-#define CONFIG_SUNXI		/* sunxi family */
 #ifdef CONFIG_SPL_BUILD
 #define CONFIG_SYS_THUMB_BUILD	/* Thumbs mode to save space in SPL */
 #endif
@@ -54,8 +53,7 @@
 #endif
 
 /* CPU */
-#define CONFIG_DISPLAY_CPUINFO
-#define CONFIG_SYS_CACHELINE_SIZE	64
+#define CONFIG_TIMER_CLK_FREQ		24000000
 
 /*
  * The DRAM Base differs between some models. We cannot use macros for the
@@ -69,7 +67,6 @@
 #define CONFIG_SYS_SDRAM_BASE		0x20000000
 #define CONFIG_SYS_LOAD_ADDR		0x22000000 /* default load address */
 #define CONFIG_SYS_TEXT_BASE		0x2a000000
-#define CONFIG_PRE_CON_BUF_ADDR		0x2f000000
 /* Note SPL_STACK_R_ADDR is set through Kconfig, we include it here 
  * since it needs to fit in with the other values. By also #defining it
  * we get warnings if the Kconfig value mismatches. */
@@ -80,7 +77,6 @@
 #define CONFIG_SYS_SDRAM_BASE		0x40000000
 #define CONFIG_SYS_LOAD_ADDR		0x42000000 /* default load address */
 #define CONFIG_SYS_TEXT_BASE		0x4a000000
-#define CONFIG_PRE_CON_BUF_ADDR		0x4f000000
 /* Note SPL_STACK_R_ADDR is set through Kconfig, we include it here 
  * since it needs to fit in with the other values. By also #defining it
  * we get warnings if the Kconfig value mismatches. */
@@ -90,7 +86,7 @@
 
 #define CONFIG_SPL_BSS_MAX_SIZE		0x00080000 /* 512 KiB */
 
-#ifdef CONFIG_MACH_SUN9I
+#if defined(CONFIG_MACH_SUN9I) || defined(CONFIG_MACH_SUN50I)
 /*
  * The A80's A1 sram starts at 0x00010000 rather then at 0x00000000 and is
  * slightly bigger. Note that it is possible to map the first 32 KiB of the
@@ -99,7 +95,7 @@
  * the 1 actually activates the mapping of the first 32 KiB to 0x00000000.
  */
 #define CONFIG_SYS_INIT_RAM_ADDR	0x10000
-#define CONFIG_SYS_INIT_RAM_SIZE	0x0a000	/* 40 KiB */
+#define CONFIG_SYS_INIT_RAM_SIZE	0x08000	/* FIXME: 40 KiB ? */
 #else
 #define CONFIG_SYS_INIT_RAM_ADDR	0x0
 #define CONFIG_SYS_INIT_RAM_SIZE	0x8000	/* 32 KiB */
@@ -124,7 +120,7 @@
 #define CONFIG_SYS_SCSI_MAX_LUN		1
 #define CONFIG_SYS_SCSI_MAX_DEVICE	(CONFIG_SYS_SCSI_MAX_SCSI_ID * \
 					 CONFIG_SYS_SCSI_MAX_LUN)
-#define CONFIG_CMD_SCSI
+#define CONFIG_SCSI
 #endif
 
 #define CONFIG_SETUP_MEMORY_TAGS
@@ -133,17 +129,23 @@
 #define CONFIG_SERIAL_TAG
 
 #ifdef CONFIG_NAND_SUNXI
-#define CONFIG_SPL_NAND_SUPPORT 1
+#define CONFIG_SYS_NAND_MAX_ECCPOS 1664
+#define CONFIG_SYS_NAND_ONFI_DETECTION
+#define CONFIG_SYS_MAX_NAND_DEVICE 8
+#endif
+
+#ifdef CONFIG_SPL_SPI_SUNXI
+#define CONFIG_SYS_SPI_U_BOOT_OFFS	0x8000
 #endif
 
 /* mmc config */
 #ifdef CONFIG_MMC
 #define CONFIG_GENERIC_MMC
-#define CONFIG_CMD_MMC
 #define CONFIG_MMC_SUNXI
 #define CONFIG_MMC_SUNXI_SLOT		0
 #define CONFIG_ENV_IS_IN_MMC
 #define CONFIG_SYS_MMC_ENV_DEV		0	/* first detected MMC controller */
+#define CONFIG_SYS_MMC_MAX_DEVICE	4
 #endif
 
 /* 64MB of malloc() pool */
@@ -173,7 +175,6 @@
 #define CONFIG_SYS_NO_FLASH
 
 #define CONFIG_SYS_MONITOR_LEN		(768 << 10)	/* 768 KiB */
-#define CONFIG_IDENT_STRING		" Allwinner Technology"
 
 #define CONFIG_ENV_OFFSET		(544 << 10) /* (8 + 24 + 512) KiB */
 #define CONFIG_ENV_SIZE			(128 << 10)	/* 128 KiB */
@@ -181,43 +182,48 @@
 #define CONFIG_FAT_WRITE	/* enable write access */
 
 #define CONFIG_SPL_FRAMEWORK
-#define CONFIG_SPL_LIBCOMMON_SUPPORT
-#define CONFIG_SPL_SERIAL_SUPPORT
-#define CONFIG_SPL_LIBGENERIC_SUPPORT
 
 #define CONFIG_SPL_BOARD_LOAD_IMAGE
 
-#define CONFIG_SPL_TEXT_BASE		0x20		/* sram start+header */
-#define CONFIG_SPL_MAX_SIZE		0x5fe0		/* 24KB on sun4i/sun7i */
-
-#define CONFIG_SPL_LIBDISK_SUPPORT
-
-#ifdef CONFIG_MMC
-#define CONFIG_SPL_MMC_SUPPORT
+#if defined(CONFIG_MACH_SUN9I)
+#define CONFIG_SPL_TEXT_BASE		0x10040		/* sram start+header */
+#define CONFIG_SPL_MAX_SIZE		0x5fc0		/* ? KiB on sun9i */
+#elif defined(CONFIG_MACH_SUN50I)
+#define CONFIG_SPL_TEXT_BASE		0x10040		/* sram start+header */
+#define CONFIG_SPL_MAX_SIZE		0x7fc0		/* 32 KiB on sun50i */
+#else
+#define CONFIG_SPL_TEXT_BASE		0x40		/* sram start+header */
+#define CONFIG_SPL_MAX_SIZE		0x5fc0		/* 24KB on sun4i/sun7i */
 #endif
 
+#ifndef CONFIG_ARM64
 #define CONFIG_SPL_LDSCRIPT "arch/arm/cpu/armv7/sunxi/u-boot-spl.lds"
+#endif
 
-#define CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_SECTOR	80	/* 40KiB */
 #define CONFIG_SPL_PAD_TO		32768		/* decimal for 'dd' */
 
+#if defined(CONFIG_MACH_SUN9I) || defined(CONFIG_MACH_SUN50I)
+/* FIXME: 40 KiB instead of 32 KiB ? */
+#define LOW_LEVEL_SRAM_STACK		0x00018000
+#define CONFIG_SPL_STACK		LOW_LEVEL_SRAM_STACK
+#else
 /* end of 32 KiB in sram */
 #define LOW_LEVEL_SRAM_STACK		0x00008000 /* End of sram */
 #define CONFIG_SPL_STACK		LOW_LEVEL_SRAM_STACK
+#endif
 
 /* I2C */
-#if defined CONFIG_AXP152_POWER || defined CONFIG_AXP209_POWER
-#define CONFIG_SPL_I2C_SUPPORT
+#if defined CONFIG_AXP152_POWER || defined CONFIG_AXP209_POWER || \
+    defined CONFIG_SY8106A_POWER
 #endif
 
 #if defined CONFIG_I2C0_ENABLE || defined CONFIG_I2C1_ENABLE || \
     defined CONFIG_I2C2_ENABLE || defined CONFIG_I2C3_ENABLE || \
-    defined CONFIG_I2C4_ENABLE
+    defined CONFIG_I2C4_ENABLE || defined CONFIG_R_I2C_ENABLE
 #define CONFIG_SYS_I2C
 #define CONFIG_SYS_I2C_MVTWSI
 #define CONFIG_SYS_I2C_SPEED		400000
 #define CONFIG_SYS_I2C_SLAVE		0x7f
-#define CONFIG_CMD_I2C
 #endif
 
 #if defined CONFIG_VIDEO_LCD_PANEL_I2C && !(defined CONFIG_SPL_BUILD)
@@ -240,8 +246,8 @@ extern int soft_i2c_gpio_scl;
 
 /* PMU */
 #if defined CONFIG_AXP152_POWER || defined CONFIG_AXP209_POWER || \
-    defined CONFIG_AXP221_POWER || defined CONFIG_AXP818_POWER
-#define CONFIG_SPL_POWER_SUPPORT
+    defined CONFIG_AXP221_POWER || defined CONFIG_AXP818_POWER || \
+    defined CONFIG_SY8106A_POWER
 #endif
 
 #ifndef CONFIG_CONS_INDEX
@@ -268,7 +274,6 @@ extern int soft_i2c_gpio_scl;
 
 /* GPIO */
 #define CONFIG_SUNXI_GPIO
-#define CONFIG_SPL_GPIO_SUPPORT
 
 #ifdef CONFIG_VIDEO
 /*
@@ -282,22 +287,13 @@ extern int soft_i2c_gpio_scl;
 
 #define CONFIG_VIDEO_SUNXI
 
-#define CONFIG_CFB_CONSOLE
-#define CONFIG_VIDEO_SW_CURSOR
 #define CONFIG_VIDEO_LOGO
 #define CONFIG_VIDEO_STD_TIMINGS
 #define CONFIG_I2C_EDID
 #define VIDEO_LINE_LEN (pGD->plnSizeX)
 
 /* allow both serial and cfb console. */
-#define CONFIG_CONSOLE_MUX
 /* stop x86 thinking in cfbconsole from trying to init a pc keyboard */
-#define CONFIG_VGA_AS_SINGLE_DEVICE
-
-/* To be able to hook simplefb into dt */
-#ifdef CONFIG_VIDEO_DT_SIMPLEFB
-#define CONFIG_OF_BOARD_SETUP
-#endif
 
 #endif /* CONFIG_VIDEO */
 
@@ -312,6 +308,7 @@ extern int soft_i2c_gpio_scl;
 #define CONFIG_PHY_GIGE			/* GMAC can use gigabit PHY	*/
 #define CONFIG_PHY_ADDR		1
 #define CONFIG_MII			/* MII PHY management		*/
+#define CONFIG_PHY_REALTEK
 #endif
 
 #ifdef CONFIG_USB_EHCI_HCD
@@ -326,25 +323,8 @@ extern int soft_i2c_gpio_scl;
 #endif
 
 #ifdef CONFIG_USB_MUSB_GADGET
-#define CONFIG_USB_GADGET
-#define CONFIG_USB_GADGET_DUALSPEED
-#define CONFIG_USB_GADGET_VBUS_DRAW	0
-
-#define CONFIG_USB_GADGET_DOWNLOAD
-#define CONFIG_USB_FUNCTION_DFU
 #define CONFIG_USB_FUNCTION_FASTBOOT
 #define CONFIG_USB_FUNCTION_MASS_STORAGE
-#endif
-
-#ifdef CONFIG_USB_GADGET_DOWNLOAD
-#define CONFIG_G_DNL_VENDOR_NUM		0x1f3a
-#define CONFIG_G_DNL_PRODUCT_NUM	0x1010
-#define CONFIG_G_DNL_MANUFACTURER	"Allwinner Technology"
-#endif
-
-#ifdef CONFIG_USB_FUNCTION_DFU
-#define CONFIG_CMD_DFU
-#define CONFIG_DFU_RAM
 #endif
 
 #ifdef CONFIG_USB_FUNCTION_FASTBOOT
@@ -362,13 +342,10 @@ extern int soft_i2c_gpio_scl;
 #endif
 
 #ifdef CONFIG_USB_FUNCTION_MASS_STORAGE
-#define CONFIG_CMD_USB_MASS_STORAGE
 #endif
 
 #ifdef CONFIG_USB_KEYBOARD
-#define CONFIG_CONSOLE_MUX
 #define CONFIG_PREBOOT
-#define CONFIG_SYS_STDIO_DEREGISTER
 #define CONFIG_SYS_USB_EVENT_POLL_VIA_INT_QUEUE
 #endif
 
@@ -380,15 +357,27 @@ extern int soft_i2c_gpio_scl;
 #endif
 
 #define CONFIG_MISC_INIT_R
-#define CONFIG_SYS_CONSOLE_IS_IN_ENV
 
 #ifndef CONFIG_SPL_BUILD
 #include <config_distro_defaults.h>
 
-/* Enable pre-console buffer to get complete log on the VGA console */
-#define CONFIG_PRE_CONSOLE_BUFFER
-#define CONFIG_PRE_CON_BUF_SZ		4096 /* Aprox 2 80*25 screens */
+#ifdef CONFIG_ARM64
+/*
+ * Boards seem to come with at least 512MB of DRAM.
+ * The kernel should go at 512K, which is the default text offset (that will
+ * be adjusted at runtime if needed).
+ * There is no compression for arm64 kernels (yet), so leave some space
+ * for really big kernels, say 256MB for now.
+ * Scripts, PXE and DTBs should go afterwards, leaving the rest for the initrd.
+ * Align the initrd to a 2MB page.
+ */
+#define KERNEL_ADDR_R	__stringify(SDRAM_OFFSET(0080000))
+#define FDT_ADDR_R	__stringify(SDRAM_OFFSET(FA00000))
+#define SCRIPT_ADDR_R	__stringify(SDRAM_OFFSET(FC00000))
+#define PXEFILE_ADDR_R	__stringify(SDRAM_OFFSET(FD00000))
+#define RAMDISK_ADDR_R	__stringify(SDRAM_OFFSET(FE00000))
 
+#else
 /*
  * 160M RAM (256M minimum minus 64MB heap + 32MB for u-boot, stack, fb, etc.
  * 32M uncompressed kernel, 16M compressed kernel, 1M fdt,
@@ -400,6 +389,7 @@ extern int soft_i2c_gpio_scl;
 #define SCRIPT_ADDR_R  __stringify(SDRAM_OFFSET(3100000))
 #define PXEFILE_ADDR_R __stringify(SDRAM_OFFSET(3200000))
 #define RAMDISK_ADDR_R __stringify(SDRAM_OFFSET(3300000))
+#endif
 
 #define MEM_LAYOUT_ENV_SETTINGS \
 	"bootm_size=0xa000000\0" \

@@ -7,9 +7,12 @@
 #ifndef __CONFIG_H
 #define __CONFIG_H
 
-#include <configs/rk3288_common.h>
+#define ROCKCHIP_DEVICE_SETTINGS \
+		"stdin=serial,cros-ec-keyb\0" \
+		"stdout=serial,vidconsole\0" \
+		"stderr=serial,vidconsole\0"
 
-#define CONFIG_SPL_MMC_SUPPORT
+#include <configs/rk3288_common.h>
 
 #define CONFIG_ENV_IS_IN_MMC
 #define CONFIG_SYS_MMC_ENV_DEV 0
@@ -18,5 +21,7 @@
  * u-boot @ 128K
  */
 #define CONFIG_ENV_OFFSET (96 * 1024)
+
+#define CONFIG_SYS_WHITE_ON_BLACK
 
 #endif

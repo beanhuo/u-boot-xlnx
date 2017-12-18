@@ -198,7 +198,7 @@ int misc_init_r(void)
 	return 0;
 }
 
-void set_muxconf_regs_essential(void)
+void set_muxconf_regs(void)
 {
 	do_set_mux((*ctrl)->control_padconf_core_base,
 		   core_padconf_array_essential,
@@ -245,10 +245,7 @@ int ehci_hcd_init(int index, enum usb_init_type init,
 
 int ehci_hcd_stop(void)
 {
-	int ret;
-
-	ret = omap_ehci_hcd_stop();
-	return ret;
+	return omap_ehci_hcd_stop();
 }
 
 void usb_hub_reset_devices(int port)

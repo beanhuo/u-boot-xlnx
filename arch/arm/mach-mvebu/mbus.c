@@ -48,7 +48,7 @@
  */
 
 #include <common.h>
-#include <asm/errno.h>
+#include <linux/errno.h>
 #include <asm/io.h>
 #include <asm/arch/cpu.h>
 #include <asm/arch/soc.h>
@@ -491,7 +491,7 @@ int mvebu_mbus_probe(struct mbus_win windows[], int count)
 #if defined(CONFIG_KIRKWOOD)
 	mbus_state.soc = &kirkwood_mbus_data;
 #endif
-#if defined(CONFIG_ARMADA_XP)
+#if defined(CONFIG_ARCH_MVEBU)
 	mbus_state.soc = &armada_370_xp_mbus_data;
 #endif
 

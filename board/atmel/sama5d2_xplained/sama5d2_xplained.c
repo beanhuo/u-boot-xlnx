@@ -7,6 +7,9 @@
 
 #include <common.h>
 #include <atmel_hlcdc.h>
+#include <debug_uart.h>
+#include <dm.h>
+#include <i2c.h>
 #include <lcd.h>
 #include <mmc.h>
 #include <net.h>
@@ -15,8 +18,8 @@
 #include <version.h>
 #include <asm/io.h>
 #include <asm/arch/at91_common.h>
-#include <asm/arch/at91_pmc.h>
 #include <asm/arch/atmel_pio4.h>
+#include <asm/arch/atmel_mpddrc.h>
 #include <asm/arch/atmel_usba_udc.h>
 #include <asm/arch/atmel_sdhci.h>
 #include <asm/arch/clk.h>
@@ -24,32 +27,6 @@
 #include <asm/arch/sama5d2.h>
 
 DECLARE_GLOBAL_DATA_PTR;
-
-int spi_cs_is_valid(unsigned int bus, unsigned int cs)
-{
-	return bus == 0 && cs == 0;
-}
-
-void spi_cs_activate(struct spi_slave *slave)
-{
-	atmel_pio4_set_pio_output(AT91_PIO_PORTA, 17, 0);
-}
-
-void spi_cs_deactivate(struct spi_slave *slave)
-{
-	atmel_pio4_set_pio_output(AT91_PIO_PORTA, 17, 1);
-}
-
-static void board_spi0_hw_init(void)
-{
-	atmel_pio4_set_a_periph(AT91_PIO_PORTA, 14, 0);
-	atmel_pio4_set_a_periph(AT91_PIO_PORTA, 15, 0);
-	atmel_pio4_set_a_periph(AT91_PIO_PORTA, 16, 0);
-
-	atmel_pio4_set_pio_output(AT91_PIO_PORTA, 17, 1);
-
-	at91_periph_clk_enable(ATMEL_ID_SPI0);
-}
 
 static void board_usb_hw_init(void)
 {
@@ -157,54 +134,6 @@ static void board_gmac_hw_init(void)
 	at91_periph_clk_enable(ATMEL_ID_GMAC);
 }
 
-static void board_sdhci0_hw_init(void)
-{
-	atmel_pio4_set_a_periph(AT91_PIO_PORTA, 0, 0);	/* SDMMC0_CK */
-	atmel_pio4_set_a_periph(AT91_PIO_PORTA, 1, 0);	/* SDMMC0_CMD */
-	atmel_pio4_set_a_periph(AT91_PIO_PORTA, 2, 0);	/* SDMMC0_DAT0 */
-	atmel_pio4_set_a_periph(AT91_PIO_PORTA, 3, 0);	/* SDMMC0_DAT1 */
-	atmel_pio4_set_a_periph(AT91_PIO_PORTA, 4, 0);	/* SDMMC0_DAT2 */
-	atmel_pio4_set_a_periph(AT91_PIO_PORTA, 5, 0);	/* SDMMC0_DAT3 */
-	atmel_pio4_set_a_periph(AT91_PIO_PORTA, 6, 0);	/* SDMMC0_DAT4 */
-	atmel_pio4_set_a_periph(AT91_PIO_PORTA, 7, 0);	/* SDMMC0_DAT5 */
-	atmel_pio4_set_a_periph(AT91_PIO_PORTA, 8, 0);	/* SDMMC0_DAT6 */
-	atmel_pio4_set_a_periph(AT91_PIO_PORTA, 9, 0);	/* SDMMC0_DAT7 */
-	atmel_pio4_set_a_periph(AT91_PIO_PORTA, 10, 0);	/* SDMMC0_RSTN */
-	atmel_pio4_set_a_periph(AT91_PIO_PORTA, 11, 0);	/* SDMMC0_VDDSEL */
-
-	at91_periph_clk_enable(ATMEL_ID_SDMMC0);
-	at91_enable_periph_generated_clk(ATMEL_ID_SDMMC0,
-					 GCK_CSS_PLLA_CLK, 1);
-}
-
-static void board_sdhci1_hw_init(void)
-{
-	atmel_pio4_set_e_periph(AT91_PIO_PORTA, 18, 0);	/* SDMMC1_DAT0 */
-	atmel_pio4_set_e_periph(AT91_PIO_PORTA, 19, 0);	/* SDMMC1_DAT1 */
-	atmel_pio4_set_e_periph(AT91_PIO_PORTA, 20, 0);	/* SDMMC1_DAT2 */
-	atmel_pio4_set_e_periph(AT91_PIO_PORTA, 21, 0);	/* SDMMC1_DAT3 */
-	atmel_pio4_set_e_periph(AT91_PIO_PORTA, 22, 0);	/* SDMMC1_CK */
-	atmel_pio4_set_e_periph(AT91_PIO_PORTA, 27, 0);	/* SDMMC1_RSTN */
-	atmel_pio4_set_e_periph(AT91_PIO_PORTA, 28, 0);	/* SDMMC1_CMD */
-	atmel_pio4_set_e_periph(AT91_PIO_PORTA, 30, 0);	/* SDMMC1_CD */
-
-	at91_periph_clk_enable(ATMEL_ID_SDMMC1);
-	at91_enable_periph_generated_clk(ATMEL_ID_SDMMC1,
-					 GCK_CSS_PLLA_CLK, 1);
-}
-
-int board_mmc_init(bd_t *bis)
-{
-#ifdef CONFIG_ATMEL_SDHCI0
-	atmel_sdhci_init((void *)ATMEL_BASE_SDMMC0, ATMEL_ID_SDMMC0);
-#endif
-#ifdef CONFIG_ATMEL_SDHCI1
-	atmel_sdhci_init((void *)ATMEL_BASE_SDMMC1, ATMEL_ID_SDMMC1);
-#endif
-
-	return 0;
-}
-
 static void board_uart1_hw_init(void)
 {
 	atmel_pio4_set_a_periph(AT91_PIO_PORTD, 2, 1);	/* URXD1 */
@@ -213,34 +142,31 @@ static void board_uart1_hw_init(void)
 	at91_periph_clk_enable(ATMEL_ID_UART1);
 }
 
+#ifdef CONFIG_DEBUG_UART_BOARD_INIT
+void board_debug_uart_init(void)
+{
+	board_uart1_hw_init();
+}
+#endif
+
+#ifdef CONFIG_BOARD_EARLY_INIT_F
 int board_early_init_f(void)
 {
-	at91_periph_clk_enable(ATMEL_ID_PIOA);
-	at91_periph_clk_enable(ATMEL_ID_PIOB);
-	at91_periph_clk_enable(ATMEL_ID_PIOC);
-	at91_periph_clk_enable(ATMEL_ID_PIOD);
-
+#ifdef CONFIG_DEBUG_UART
+	debug_uart_init();
+#else
 	board_uart1_hw_init();
+#endif
 
 	return 0;
 }
+#endif
 
 int board_init(void)
 {
 	/* address of boot parameters */
 	gd->bd->bi_boot_params = CONFIG_SYS_SDRAM_BASE + 0x100;
 
-#ifdef CONFIG_ATMEL_SPI
-	board_spi0_hw_init();
-#endif
-#ifdef CONFIG_ATMEL_SDHCI
-#ifdef CONFIG_ATMEL_SDHCI0
-	board_sdhci0_hw_init();
-#endif
-#ifdef CONFIG_ATMEL_SDHCI1
-	board_sdhci1_hw_init();
-#endif
-#endif
 #ifdef CONFIG_MACB
 	board_gmac_hw_init();
 #endif
@@ -281,3 +207,143 @@ int board_eth_init(bd_t *bis)
 
 	return rc;
 }
+
+#ifdef CONFIG_CMD_I2C
+static int set_ethaddr_from_eeprom(void)
+{
+	const int ETH_ADDR_LEN = 6;
+	unsigned char ethaddr[ETH_ADDR_LEN];
+	const char *ETHADDR_NAME = "ethaddr";
+	struct udevice *bus, *dev;
+
+	if (getenv(ETHADDR_NAME))
+		return 0;
+
+	if (uclass_get_device_by_seq(UCLASS_I2C, 1, &bus)) {
+		printf("Cannot find I2C bus 1\n");
+		return -1;
+	}
+
+	if (dm_i2c_probe(bus, AT24MAC_ADDR, 0, &dev)) {
+		printf("Failed to probe I2C chip\n");
+		return -1;
+	}
+
+	if (dm_i2c_read(dev, AT24MAC_REG, ethaddr, ETH_ADDR_LEN)) {
+		printf("Failed to read ethernet address from EEPROM\n");
+		return -1;
+	}
+
+	if (!is_valid_ethaddr(ethaddr)) {
+		printf("The ethernet address read from EEPROM is not valid!\n");
+		return -1;
+	}
+
+	return eth_setenv_enetaddr(ETHADDR_NAME, ethaddr);
+}
+#else
+static int set_ethaddr_from_eeprom(void)
+{
+	return 0;
+}
+#endif
+
+#ifdef CONFIG_MISC_INIT_R
+int misc_init_r(void)
+{
+	set_ethaddr_from_eeprom();
+
+	return 0;
+}
+#endif
+
+/* SPL */
+#ifdef CONFIG_SPL_BUILD
+void spl_board_init(void)
+{
+}
+
+static void ddrc_conf(struct atmel_mpddrc_config *ddrc)
+{
+	ddrc->md = (ATMEL_MPDDRC_MD_DBW_32_BITS | ATMEL_MPDDRC_MD_DDR3_SDRAM);
+
+	ddrc->cr = (ATMEL_MPDDRC_CR_NC_COL_10 |
+		    ATMEL_MPDDRC_CR_NR_ROW_14 |
+		    ATMEL_MPDDRC_CR_CAS_DDR_CAS5 |
+		    ATMEL_MPDDRC_CR_DIC_DS |
+		    ATMEL_MPDDRC_CR_DIS_DLL |
+		    ATMEL_MPDDRC_CR_NB_8BANKS |
+		    ATMEL_MPDDRC_CR_DECOD_INTERLEAVED |
+		    ATMEL_MPDDRC_CR_UNAL_SUPPORTED);
+
+	ddrc->rtr = 0x511;
+
+	ddrc->tpr0 = (6 << ATMEL_MPDDRC_TPR0_TRAS_OFFSET |
+		      3 << ATMEL_MPDDRC_TPR0_TRCD_OFFSET |
+		      4 << ATMEL_MPDDRC_TPR0_TWR_OFFSET |
+		      9 << ATMEL_MPDDRC_TPR0_TRC_OFFSET |
+		      3 << ATMEL_MPDDRC_TPR0_TRP_OFFSET |
+		      4 << ATMEL_MPDDRC_TPR0_TRRD_OFFSET |
+		      4 << ATMEL_MPDDRC_TPR0_TWTR_OFFSET |
+		      4 << ATMEL_MPDDRC_TPR0_TMRD_OFFSET);
+
+	ddrc->tpr1 = (27 << ATMEL_MPDDRC_TPR1_TRFC_OFFSET |
+		      29 << ATMEL_MPDDRC_TPR1_TXSNR_OFFSET |
+		      0 << ATMEL_MPDDRC_TPR1_TXSRD_OFFSET |
+		      3 << ATMEL_MPDDRC_TPR1_TXP_OFFSET);
+
+	ddrc->tpr2 = (0 << ATMEL_MPDDRC_TPR2_TXARD_OFFSET |
+		      0 << ATMEL_MPDDRC_TPR2_TXARDS_OFFSET |
+		      0 << ATMEL_MPDDRC_TPR2_TRPA_OFFSET |
+		      4 << ATMEL_MPDDRC_TPR2_TRTP_OFFSET |
+		      7 << ATMEL_MPDDRC_TPR2_TFAW_OFFSET);
+}
+
+void mem_init(void)
+{
+	struct at91_pmc *pmc = (struct at91_pmc *)ATMEL_BASE_PMC;
+	struct atmel_mpddr *mpddrc = (struct atmel_mpddr *)ATMEL_BASE_MPDDRC;
+	struct atmel_mpddrc_config ddrc_config;
+	u32 reg;
+
+	ddrc_conf(&ddrc_config);
+
+	at91_periph_clk_enable(ATMEL_ID_MPDDRC);
+	writel(AT91_PMC_DDR, &pmc->scer);
+
+	reg = readl(&mpddrc->io_calibr);
+	reg &= ~ATMEL_MPDDRC_IO_CALIBR_RDIV;
+	reg |= ATMEL_MPDDRC_IO_CALIBR_DDR3_RZQ_55;
+	reg &= ~ATMEL_MPDDRC_IO_CALIBR_TZQIO;
+	reg |= ATMEL_MPDDRC_IO_CALIBR_TZQIO_(100);
+	writel(reg, &mpddrc->io_calibr);
+
+	writel(ATMEL_MPDDRC_RD_DATA_PATH_SHIFT_TWO_CYCLE,
+	       &mpddrc->rd_data_path);
+
+	ddr3_init(ATMEL_BASE_MPDDRC, ATMEL_BASE_DDRCS, &ddrc_config);
+
+	writel(0x3, &mpddrc->cal_mr4);
+	writel(64, &mpddrc->tim_cal);
+}
+
+void at91_pmc_init(void)
+{
+	struct at91_pmc *pmc = (struct at91_pmc *)ATMEL_BASE_PMC;
+	u32 tmp;
+
+	tmp = AT91_PMC_PLLAR_29 |
+	      AT91_PMC_PLLXR_PLLCOUNT(0x3f) |
+	      AT91_PMC_PLLXR_MUL(82) |
+	      AT91_PMC_PLLXR_DIV(1);
+	at91_plla_init(tmp);
+
+	writel(0x0 << 8, &pmc->pllicpr);
+
+	tmp = AT91_PMC_MCKR_H32MXDIV |
+	      AT91_PMC_MCKR_PLLADIV_2 |
+	      AT91_PMC_MCKR_MDIV_3 |
+	      AT91_PMC_MCKR_CSS_PLLA;
+	at91_mck_init(tmp);
+}
+#endif

@@ -1,5 +1,7 @@
 /*
- * Copyright (C) 2011-2015 Masahiro Yamada <yamada.masahiro@socionext.com>
+ * Copyright (C) 2011-2015 Panasonic Corporation
+ * Copyright (C) 2016      Socionext Inc.
+ *   Author: Masahiro Yamada <yamada.masahiro@socionext.com>
  *
  * SPDX-License-Identifier:	GPL-2.0+
  */
@@ -8,26 +10,27 @@
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/sizes.h>
-#include <mach/init.h>
-#include <mach/sg-regs.h>
+
+#include "../init.h"
+#include "../sg-regs.h"
 
 int memconf_init(const struct uniphier_board_data *bd)
 {
-	u32 tmp = 0;
+	u32 tmp;
 	unsigned long size_per_word;
 
 	tmp = readl(SG_MEMCONF);
 
 	tmp &= ~(SG_MEMCONF_CH0_SZ_MASK | SG_MEMCONF_CH0_NUM_MASK);
 
-	switch (bd->dram_ch0_width) {
+	switch (bd->dram_ch[0].width) {
 	case 16:
 		tmp |= SG_MEMCONF_CH0_NUM_1;
-		size_per_word = bd->dram_ch0_size;
+		size_per_word = bd->dram_ch[0].size;
 		break;
 	case 32:
 		tmp |= SG_MEMCONF_CH0_NUM_2;
-		size_per_word = bd->dram_ch0_size >> 1;
+		size_per_word = bd->dram_ch[0].size >> 1;
 		break;
 	default:
 		pr_err("error: unsupported DRAM Ch0 width\n");
@@ -58,14 +61,14 @@ int memconf_init(const struct uniphier_board_data *bd)
 
 	tmp &= ~(SG_MEMCONF_CH1_SZ_MASK | SG_MEMCONF_CH1_NUM_MASK);
 
-	switch (bd->dram_ch1_width) {
+	switch (bd->dram_ch[1].width) {
 	case 16:
 		tmp |= SG_MEMCONF_CH1_NUM_1;
-		size_per_word = bd->dram_ch1_size;
+		size_per_word = bd->dram_ch[1].size;
 		break;
 	case 32:
 		tmp |= SG_MEMCONF_CH1_NUM_2;
-		size_per_word = bd->dram_ch1_size >> 1;
+		size_per_word = bd->dram_ch[1].size >> 1;
 		break;
 	default:
 		pr_err("error: unsupported DRAM Ch1 width\n");
@@ -93,7 +96,7 @@ int memconf_init(const struct uniphier_board_data *bd)
 		return -EINVAL;
 	}
 
-	if (bd->dram_ch0_base + bd->dram_ch0_size < bd->dram_ch1_base)
+	if (bd->dram_ch[0].base + bd->dram_ch[0].size < bd->dram_ch[1].base)
 		tmp |= SG_MEMCONF_SPARSEMEM;
 	else
 		tmp &= ~SG_MEMCONF_SPARSEMEM;

@@ -41,6 +41,27 @@ int regulator_get_value(struct udevice *dev)
 int regulator_set_value(struct udevice *dev, int uV)
 {
 	const struct dm_regulator_ops *ops = dev_get_driver_ops(dev);
+	struct dm_regulator_uclass_platdata *uc_pdata;
+
+	uc_pdata = dev_get_uclass_platdata(dev);
+	if (uc_pdata->min_uV != -ENODATA && uV < uc_pdata->min_uV)
+		return -EINVAL;
+	if (uc_pdata->max_uV != -ENODATA && uV > uc_pdata->max_uV)
+		return -EINVAL;
+
+	if (!ops || !ops->set_value)
+		return -ENOSYS;
+
+	return ops->set_value(dev, uV);
+}
+
+/*
+ * To be called with at most caution as there is no check
+ * before setting the actual voltage value.
+ */
+int regulator_set_value_force(struct udevice *dev, int uV)
+{
+	const struct dm_regulator_ops *ops = dev_get_driver_ops(dev);
 
 	if (!ops || !ops->set_value)
 		return -ENOSYS;
@@ -61,6 +82,13 @@ int regulator_get_current(struct udevice *dev)
 int regulator_set_current(struct udevice *dev, int uA)
 {
 	const struct dm_regulator_ops *ops = dev_get_driver_ops(dev);
+	struct dm_regulator_uclass_platdata *uc_pdata;
+
+	uc_pdata = dev_get_uclass_platdata(dev);
+	if (uc_pdata->min_uA != -ENODATA && uA < uc_pdata->min_uA)
+		return -EINVAL;
+	if (uc_pdata->max_uA != -ENODATA && uA > uc_pdata->max_uA)
+		return -EINVAL;
 
 	if (!ops || !ops->set_current)
 		return -ENOSYS;
@@ -178,7 +206,7 @@ static void regulator_show(struct udevice *dev, int ret)
 		printf("; set %d uA", uc_pdata->min_uA);
 	printf("; enabling");
 	if (ret)
-		printf(" (ret: %d)\n", ret);
+		printf(" (ret: %d)", ret);
 	printf("\n");
 }
 
@@ -325,7 +353,7 @@ int regulators_enable_boot_on(bool verbose)
 	if (ret)
 		return ret;
 	for (uclass_first_device(UCLASS_REGULATOR, &dev);
-	     dev && !ret;
+	     dev;
 	     uclass_next_device(&dev)) {
 		ret = regulator_autoset(dev);
 		if (ret == -EMEDIUMTYPE) {
@@ -334,6 +362,8 @@ int regulators_enable_boot_on(bool verbose)
 		}
 		if (verbose)
 			regulator_show(dev, ret);
+		if (ret == -ENOSYS)
+			ret = 0;
 	}
 
 	return ret;

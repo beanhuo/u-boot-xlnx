@@ -119,11 +119,8 @@ enum fdt_compat_id {
 	COMPAT_NVIDIA_TEGRA20_EMC,	/* Tegra20 memory controller */
 	COMPAT_NVIDIA_TEGRA20_EMC_TABLE, /* Tegra20 memory timing table */
 	COMPAT_NVIDIA_TEGRA20_NAND,	/* Tegra2 NAND controller */
-	COMPAT_NVIDIA_TEGRA20_PWM,	/* Tegra 2 PWM controller */
-	COMPAT_NVIDIA_TEGRA124_DC,	/* Tegra 124 Display controller */
-	COMPAT_NVIDIA_TEGRA124_SOR,	/* Tegra 124 Serial Output Resource */
 	COMPAT_NVIDIA_TEGRA124_PMC,	/* Tegra 124 power mgmt controller */
-	COMPAT_NVIDIA_TEGRA20_DC,	/* Tegra 2 Display controller */
+	COMPAT_NVIDIA_TEGRA186_SDMMC,	/* Tegra186 SDMMC controller */
 	COMPAT_NVIDIA_TEGRA210_SDMMC,	/* Tegra210 SDMMC controller */
 	COMPAT_NVIDIA_TEGRA124_SDMMC,	/* Tegra124 SDMMC controller */
 	COMPAT_NVIDIA_TEGRA30_SDMMC,	/* Tegra30 SDMMC controller */
@@ -137,39 +134,27 @@ enum fdt_compat_id {
 	COMPAT_SAMSUNG_S3C2440_I2C,	/* Exynos I2C Controller */
 	COMPAT_SAMSUNG_EXYNOS5_SOUND,	/* Exynos Sound */
 	COMPAT_WOLFSON_WM8994_CODEC,	/* Wolfson WM8994 Sound Codec */
-	COMPAT_GOOGLE_CROS_EC_KEYB,	/* Google CROS_EC Keyboard */
 	COMPAT_SAMSUNG_EXYNOS_USB_PHY,	/* Exynos phy controller for usb2.0 */
 	COMPAT_SAMSUNG_EXYNOS5_USB3_PHY,/* Exynos phy controller for usb3.0 */
 	COMPAT_SAMSUNG_EXYNOS_TMU,	/* Exynos TMU */
-	COMPAT_SAMSUNG_EXYNOS_FIMD,	/* Exynos Display controller */
 	COMPAT_SAMSUNG_EXYNOS_MIPI_DSI,	/* Exynos mipi dsi */
-	COMPAT_SAMSUNG_EXYNOS5_DP,	/* Exynos Display port controller */
 	COMPAT_SAMSUNG_EXYNOS_DWMMC,	/* Exynos DWMMC controller */
 	COMPAT_SAMSUNG_EXYNOS_MMC,	/* Exynos MMC controller */
-	COMPAT_SAMSUNG_EXYNOS_SERIAL,	/* Exynos UART */
 	COMPAT_MAXIM_MAX77686_PMIC,	/* MAX77686 PMIC */
 	COMPAT_GENERIC_SPI_FLASH,	/* Generic SPI Flash chip */
 	COMPAT_MAXIM_98095_CODEC,	/* MAX98095 Codec */
 	COMPAT_SAMSUNG_EXYNOS5_I2C,	/* Exynos5 High Speed I2C Controller */
-	COMPAT_SANDBOX_LCD_SDL,		/* Sandbox LCD emulation with SDL */
 	COMPAT_SAMSUNG_EXYNOS_SYSMMU,	/* Exynos sysmmu */
 	COMPAT_INTEL_MICROCODE,		/* Intel microcode update */
-	COMPAT_MEMORY_SPD,		/* Memory SPD information */
-	COMPAT_INTEL_PANTHERPOINT_AHCI,	/* Intel Pantherpoint AHCI */
-	COMPAT_INTEL_MODEL_206AX,	/* Intel Model 206AX CPU */
-	COMPAT_INTEL_GMA,		/* Intel Graphics Media Accelerator */
 	COMPAT_AMS_AS3722,		/* AMS AS3722 PMIC */
-	COMPAT_INTEL_ICH_SPI,		/* Intel ICH7/9 SPI controller */
 	COMPAT_INTEL_QRK_MRC,		/* Intel Quark MRC */
-	COMPAT_INTEL_X86_PINCTRL,	/* Intel ICH7/9 pin control */
-	COMPAT_SOCIONEXT_XHCI,		/* Socionext UniPhier xHCI */
-	COMPAT_INTEL_PCH,		/* Intel PCH */
-	COMPAT_INTEL_IRQ_ROUTER,	/* Intel Interrupt Router */
 	COMPAT_ALTERA_SOCFPGA_DWMAC,	/* SoCFPGA Ethernet controller */
 	COMPAT_ALTERA_SOCFPGA_DWMMC,	/* SoCFPGA DWMMC controller */
 	COMPAT_ALTERA_SOCFPGA_DWC2USB,	/* SoCFPGA DWC2 USB controller */
 	COMPAT_INTEL_BAYTRAIL_FSP,	/* Intel Bay Trail FSP */
 	COMPAT_INTEL_BAYTRAIL_FSP_MDP,	/* Intel FSP memory-down params */
+	COMPAT_INTEL_IVYBRIDGE_FSP,	/* Intel Ivy Bridge FSP */
+	COMPAT_SUNXI_NAND,		/* SUNXI NAND controller */
 
 	COMPAT_COUNT,
 };
@@ -311,11 +296,13 @@ int fdtdec_next_compatible_subnode(const void *blob, int node,
  * @param na	the number of cells used to represent an address
  * @param ns	the number of cells used to represent a size
  * @param sizep	a pointer to store the size into. Use NULL if not required
+ * @param translate	Indicates whether to translate the returned value
+ *			using the parent node's ranges property.
  * @return address, if found, or FDT_ADDR_T_NONE if not
  */
 fdt_addr_t fdtdec_get_addr_size_fixed(const void *blob, int node,
 		const char *prop_name, int index, int na, int ns,
-		fdt_size_t *sizep);
+		fdt_size_t *sizep, bool translate);
 
 /*
  * Look up an address property in a node and return the parsed address, and
@@ -331,10 +318,13 @@ fdt_addr_t fdtdec_get_addr_size_fixed(const void *blob, int node,
  * @param prop_name	name of property to find
  * @param index	which address to retrieve from a list of addresses. Often 0.
  * @param sizep	a pointer to store the size into. Use NULL if not required
+ * @param translate	Indicates whether to translate the returned value
+ *			using the parent node's ranges property.
  * @return address, if found, or FDT_ADDR_T_NONE if not
  */
 fdt_addr_t fdtdec_get_addr_size_auto_parent(const void *blob, int parent,
-		int node, const char *prop_name, int index, fdt_size_t *sizep);
+		int node, const char *prop_name, int index, fdt_size_t *sizep,
+		bool translate);
 
 /*
  * Look up an address property in a node and return the parsed address, and
@@ -354,10 +344,13 @@ fdt_addr_t fdtdec_get_addr_size_auto_parent(const void *blob, int parent,
  * @param prop_name	name of property to find
  * @param index	which address to retrieve from a list of addresses. Often 0.
  * @param sizep	a pointer to store the size into. Use NULL if not required
+ * @param translate	Indicates whether to translate the returned value
+ *			using the parent node's ranges property.
  * @return address, if found, or FDT_ADDR_T_NONE if not
  */
 fdt_addr_t fdtdec_get_addr_size_auto_noparent(const void *blob, int node,
-		const char *prop_name, int index, fdt_size_t *sizep);
+		const char *prop_name, int index, fdt_size_t *sizep,
+		bool translate);
 
 /*
  * Look up an address property in a node and return the parsed address.
@@ -445,32 +438,15 @@ int fdtdec_get_pci_vendev(const void *blob, int node,
 
 /**
  * Look at the pci address of a device node that represents a PCI device
- * and parse the bus, device and function number from it. For some cases
- * like the bus number encoded in reg property is not correct after pci
- * enumeration, this function looks through the node's compatible strings
- * to get these numbers extracted instead.
- *
- * @param blob		FDT blob
- * @param node		node to examine
- * @param addr		pci address in the form of fdt_pci_addr
- * @param bdf		returns bus, device, function triplet
- * @return 0 if ok, negative on error
- */
-int fdtdec_get_pci_bdf(const void *blob, int node,
-		struct fdt_pci_addr *addr, pci_dev_t *bdf);
-
-/**
- * Look at the pci address of a device node that represents a PCI device
  * and return base address of the pci device's registers.
  *
- * @param blob		FDT blob
- * @param node		node to examine
+ * @param dev		device to examine
  * @param addr		pci address in the form of fdt_pci_addr
  * @param bar		returns base address of the pci device's registers
  * @return 0 if ok, negative on error
  */
-int fdtdec_get_pci_bar32(const void *blob, int node,
-		struct fdt_pci_addr *addr, u32 *bar);
+int fdtdec_get_pci_bar32(struct udevice *dev, struct fdt_pci_addr *addr,
+			 u32 *bar);
 
 /**
  * Look up a 32-bit integer property in a node and return it. The property
@@ -591,7 +567,7 @@ int fdtdec_check_fdt(void);
  * @param id		Compatible ID to look for
  * @param node_list	Place to put list of found nodes
  * @param maxcount	Maximum number of nodes to find
- * @return number of nodes found on success, FTD_ERR_... on error
+ * @return number of nodes found on success, FDT_ERR_... on error
  */
 int fdtdec_find_aliases_for_id(const void *blob, const char *name,
 			enum fdt_compat_id id, int *node_list, int maxcount);
@@ -739,6 +715,15 @@ const u32 *fdtdec_locate_array(const void *blob, int node,
  * @return 1 if the properly is present; 0 if it isn't present
  */
 int fdtdec_get_bool(const void *blob, int node, const char *prop_name);
+
+/*
+ * Count child nodes of one parent node.
+ *
+ * @param blob	FDT blob
+ * @param node	parent node
+ * @return number of child node; 0 if there is not child node
+ */
+int fdtdec_get_child_count(const void *blob, int node);
 
 /**
  * Look in the FDT for a config item with the given name and return its value
@@ -991,6 +976,40 @@ struct display_timing {
  */
 int fdtdec_decode_display_timing(const void *blob, int node, int index,
 				 struct display_timing *config);
+
+/**
+ * fdtdec_setup_memory_size() - decode and setup gd->ram_size
+ *
+ * Decode the /memory 'reg' property to determine the size of the first memory
+ * bank, populate the global data with the size of the first bank of memory.
+ *
+ * This function should be called from a boards dram_init(). This helper
+ * function allows for boards to query the device tree for DRAM size instead of
+ * hard coding the value in the case where the memory size cannot be detected
+ * automatically.
+ *
+ * @return 0 if OK, -EINVAL if the /memory node or reg property is missing or
+ * invalid
+ */
+int fdtdec_setup_memory_size(void);
+
+/**
+ * fdtdec_setup_memory_banksize() - decode and populate gd->bd->bi_dram
+ *
+ * Decode the /memory 'reg' property to determine the address and size of the
+ * memory banks. Use this data to populate the global data board info with the
+ * phys address and size of memory banks.
+ *
+ * This function should be called from a boards dram_init_banksize(). This
+ * helper function allows for boards to query the device tree for memory bank
+ * information instead of hard coding the information in cases where it cannot
+ * be detected automatically.
+ *
+ * @return 0 if OK, -EINVAL if the /memory node or reg property is missing or
+ * invalid
+ */
+int fdtdec_setup_memory_banksize(void);
+
 /**
  * Set up the device tree ready for use
  */

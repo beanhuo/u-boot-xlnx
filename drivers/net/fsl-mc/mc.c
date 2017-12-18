@@ -5,6 +5,7 @@
  */
 #include <common.h>
 #include <errno.h>
+#include <linux/bug.h>
 #include <asm/io.h>
 #include <libfdt.h>
 #include <fdt_support.h>
@@ -39,6 +40,7 @@ int child_dprc_id;
 struct fsl_dpbp_obj *dflt_dpbp = NULL;
 struct fsl_dpio_obj *dflt_dpio = NULL;
 struct fsl_dpni_obj *dflt_dpni = NULL;
+static u64 mc_lazy_dpl_addr;
 
 #ifdef DEBUG
 void dump_ram_words(const char *title, void *addr)
@@ -355,6 +357,12 @@ static unsigned long get_mc_boot_timeout_ms(void)
 }
 
 #ifdef CONFIG_SYS_LS_MC_DRAM_AIOP_IMG_OFFSET
+
+__weak bool soc_has_aiop(void)
+{
+	return false;
+}
+
 static int load_mc_aiop_img(u64 aiop_fw_addr)
 {
 	u64 mc_ram_addr = mc_get_dram_addr();
@@ -362,6 +370,9 @@ static int load_mc_aiop_img(u64 aiop_fw_addr)
 	void *aiop_img;
 #endif
 
+	/* Check if AIOP is available */
+	if (!soc_has_aiop())
+		return -ENODEV;
 	/*
 	 * Load the MC AIOP image in the MC private DRAM block:
 	 */
@@ -454,7 +465,7 @@ int mc_init(u64 mc_fw_addr, u64 mc_dpc_addr)
 
 	/*
 	 * Management Complex cores should be held at reset out of POR.
-	 * U-boot should be the first software to touch MC. To be safe,
+	 * U-Boot should be the first software to touch MC. To be safe,
 	 * we reset all cores again by setting GCR1 to 0. It doesn't do
 	 * anything if they are held at reset. After we setup the firmware
 	 * we kick off MC by deasserting the reset bit for core 0, and
@@ -562,6 +573,9 @@ int mc_apply_dpl(u64 mc_dpl_addr)
 	u64 mc_ram_addr = mc_get_dram_addr();
 	size_t mc_ram_size = mc_get_dram_block_size();
 
+	if (!mc_dpl_addr)
+		return -1;
+
 	error = load_mc_dpl(mc_ram_addr, mc_ram_size, mc_dpl_addr);
 	if (error != 0)
 		return error;
@@ -655,6 +669,26 @@ int fsl_mc_ldpaa_init(bd_t *bis)
 	return 0;
 }
 
+static int dprc_version_check(struct fsl_mc_io *mc_io, uint16_t handle)
+{
+	struct dprc_attributes attr;
+	int error;
+
+	memset(&attr, 0, sizeof(struct dprc_attributes));
+	error = dprc_get_attributes(mc_io, MC_CMD_NO_FLAGS, handle, &attr);
+	if (error == 0) {
+		if ((attr.version.major != DPRC_VER_MAJOR) ||
+		    (attr.version.minor != DPRC_VER_MINOR)) {
+			printf("DPRC version mismatch found %u.%u,",
+			       attr.version.major,
+			       attr.version.minor);
+			printf("supported version is %u.%u\n",
+			       DPRC_VER_MAJOR, DPRC_VER_MINOR);
+		}
+	}
+	return error;
+}
+
 static int dpio_init(void)
 {
 	struct qbman_swp_desc p_des;
@@ -688,11 +722,18 @@ static int dpio_init(void)
 		goto err_get_attr;
 	}
 
+	if ((attr.version.major != DPIO_VER_MAJOR) ||
+	    (attr.version.minor != DPIO_VER_MINOR)) {
+		printf("DPIO version mismatch found %u.%u,",
+		       attr.version.major, attr.version.minor);
+		printf("supported version is %u.%u\n",
+		       DPIO_VER_MAJOR, DPIO_VER_MINOR);
+	}
+
 	dflt_dpio->dpio_id = attr.id;
 #ifdef DEBUG
 	printf("Init: DPIO id=0x%d\n", dflt_dpio->dpio_id);
 #endif
-
 	err = dpio_enable(dflt_mc_io, MC_CMD_NO_FLAGS, dflt_dpio->dpio_handle);
 	if (err < 0) {
 		printf("dpio_enable() failed %d\n", err);
@@ -719,11 +760,11 @@ static int dpio_init(void)
 err_get_swp_init:
 	dpio_disable(dflt_mc_io, MC_CMD_NO_FLAGS, dflt_dpio->dpio_handle);
 err_get_enable:
-	free(dflt_dpio);
 err_get_attr:
 	dpio_close(dflt_mc_io, MC_CMD_NO_FLAGS, dflt_dpio->dpio_handle);
 	dpio_destroy(dflt_mc_io, MC_CMD_NO_FLAGS, dflt_dpio->dpio_handle);
 err_create:
+	free(dflt_dpio);
 err_malloc:
 	return err;
 }
@@ -784,11 +825,18 @@ static int dprc_init(void)
 		goto err_root_open;
 	}
 
+	err = dprc_version_check(root_mc_io, root_dprc_handle);
+	if (err < 0) {
+		printf("dprc_version_check() failed: %d\n", err);
+		goto err_root_open;
+	}
+
+	memset(&cfg, 0, sizeof(struct dprc_cfg));
 	cfg.options = DPRC_CFG_OPT_TOPOLOGY_CHANGES_ALLOWED |
 		      DPRC_CFG_OPT_OBJ_CREATE_ALLOWED |
 		      DPRC_CFG_OPT_ALLOC_ALLOWED;
 	cfg.icid = DPRC_GET_ICID_FROM_POOL;
-	cfg.portal_id = 250;
+	cfg.portal_id = DPRC_GET_PORTAL_ID_FROM_POOL;
 	err = dprc_create_container(root_mc_io, MC_CMD_NO_FLAGS,
 			root_dprc_handle,
 			&cfg,
@@ -906,6 +954,14 @@ static int dpbp_init(void)
 		goto err_get_attr;
 	}
 
+	if ((dpbp_attr.version.major != DPBP_VER_MAJOR) ||
+	    (dpbp_attr.version.minor != DPBP_VER_MINOR)) {
+		printf("DPBP version mismatch found %u.%u,",
+		       dpbp_attr.version.major, dpbp_attr.version.minor);
+		printf("supported version is %u.%u\n",
+		       DPBP_VER_MAJOR, DPBP_VER_MINOR);
+	}
+
 	dflt_dpbp->dpbp_attr.id = dpbp_attr.id;
 #ifdef DEBUG
 	printf("Init: DPBP id=0x%d\n", dflt_dpbp->dpbp_attr.id);
@@ -963,6 +1019,8 @@ static int dpni_init(void)
 {
 	int err;
 	struct dpni_attr dpni_attr;
+	uint8_t	ext_cfg_buf[256] = {0};
+	struct dpni_extended_cfg dpni_extended_cfg;
 	struct dpni_cfg dpni_cfg;
 
 	dflt_dpni = (struct fsl_dpni_obj *)malloc(sizeof(struct fsl_dpni_obj));
@@ -972,10 +1030,19 @@ static int dpni_init(void)
 		goto err_malloc;
 	}
 
+	memset(&dpni_extended_cfg, 0, sizeof(dpni_extended_cfg));
+	err = dpni_prepare_extended_cfg(&dpni_extended_cfg, &ext_cfg_buf[0]);
+	if (err < 0) {
+		err = -ENODEV;
+		printf("dpni_prepare_extended_cfg() failed: %d\n", err);
+		goto err_prepare_extended_cfg;
+	}
+
 	memset(&dpni_cfg, 0, sizeof(dpni_cfg));
 	dpni_cfg.adv.options = DPNI_OPT_UNICAST_FILTER |
 			       DPNI_OPT_MULTICAST_FILTER;
 
+	dpni_cfg.adv.ext_cfg_iova = (uint64_t)&ext_cfg_buf[0];
 	err = dpni_create(dflt_mc_io, MC_CMD_NO_FLAGS, &dpni_cfg,
 			  &dflt_dpni->dpni_handle);
 
@@ -994,6 +1061,14 @@ static int dpni_init(void)
 		goto err_get_attr;
 	}
 
+	if ((dpni_attr.version.major != DPNI_VER_MAJOR) ||
+	    (dpni_attr.version.minor != DPNI_VER_MINOR)) {
+		printf("DPNI version mismatch found %u.%u,",
+		       dpni_attr.version.major, dpni_attr.version.minor);
+		printf("supported version is %u.%u\n",
+		       DPNI_VER_MAJOR, DPNI_VER_MINOR);
+	}
+
 	dflt_dpni->dpni_id = dpni_attr.id;
 #ifdef DEBUG
 	printf("Init: DPNI id=0x%d\n", dflt_dpni->dpni_id);
@@ -1008,11 +1083,12 @@ static int dpni_init(void)
 	return 0;
 
 err_close:
-	free(dflt_dpni);
 err_get_attr:
 	dpni_close(dflt_mc_io, MC_CMD_NO_FLAGS, dflt_dpni->dpni_handle);
 	dpni_destroy(dflt_mc_io, MC_CMD_NO_FLAGS, dflt_dpni->dpni_handle);
 err_create:
+err_prepare_extended_cfg:
+	free(dflt_dpni);
 err_malloc:
 	return err;
 }
@@ -1084,7 +1160,13 @@ int fsl_mc_ldpaa_exit(bd_t *bd)
 {
 	int err = 0;
 
-	if (bd && get_mc_boot_status() == -1)
+	if (bd && mc_lazy_dpl_addr && !fsl_mc_ldpaa_exit(NULL)) {
+		mc_apply_dpl(mc_lazy_dpl_addr);
+		mc_lazy_dpl_addr = 0;
+	}
+
+	/* MC is not loaded intentionally, So return success. */
+	if (bd && get_mc_boot_status() != 0)
 		return 0;
 
 	if (bd && !get_mc_boot_status() && get_dpl_apply_status() == -1) {
@@ -1098,7 +1180,7 @@ int fsl_mc_ldpaa_exit(bd_t *bd)
 
 	err = dpbp_exit();
 	if (err < 0) {
-		printf("dpni_exit() failed: %d\n", err);
+		printf("dpbp_exit() failed: %d\n", err);
 		goto err;
 	}
 
@@ -1171,6 +1253,7 @@ static int do_fsl_mc(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 				aiop_fw_addr = simple_strtoull(argv[3], NULL,
 							       16);
 
+				/* if SoC doesn't have AIOP, err = -ENODEV */
 				err = load_mc_aiop_img(aiop_fw_addr);
 				if (!err)
 					printf("fsl-mc: AIOP FW applied\n");
@@ -1185,6 +1268,7 @@ static int do_fsl_mc(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 		}
 		break;
 
+	case 'l':
 	case 'a': {
 			u64 mc_dpl_addr;
 
@@ -1205,8 +1289,17 @@ static int do_fsl_mc(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 				return -ENODEV;
 			}
 
-			if (!fsl_mc_ldpaa_exit(NULL))
-				err = mc_apply_dpl(mc_dpl_addr);
+			if (argv[1][0] == 'l') {
+				/*
+				 * We will do the actual dpaa exit and dpl apply
+				 * later from announce_and_cleanup().
+				 */
+				mc_lazy_dpl_addr = mc_dpl_addr;
+			} else {
+				/* The user wants it applied now */
+				if (!fsl_mc_ldpaa_exit(NULL))
+					err = mc_apply_dpl(mc_dpl_addr);
+			}
 			break;
 		}
 	default:
@@ -1224,5 +1317,6 @@ U_BOOT_CMD(
 	"DPAA2 command to manage Management Complex (MC)",
 	"start mc [FW_addr] [DPC_addr] - Start Management Complex\n"
 	"fsl_mc apply DPL [DPL_addr] - Apply DPL file\n"
+	"fsl_mc lazyapply DPL [DPL_addr] - Apply DPL file on exit\n"
 	"fsl_mc start aiop [FW_addr] - Start AIOP\n"
 );

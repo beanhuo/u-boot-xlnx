@@ -75,8 +75,12 @@ ENTRY(_main)
 	ldr	x0, =(CONFIG_SYS_INIT_SP_ADDR)
 #endif
 	bic	sp, x0, #0xf	/* 16-byte alignment for ABI compliance */
-	bl	board_init_f_mem
+	mov	x0, sp
+	bl	board_init_f_alloc_reserve
 	mov	sp, x0
+	/* set up gd here, outside any C code */
+	mov	x18, x0
+	bl	board_init_f_init_reserve
 
 	mov	x0, #0
 	bl	board_init_f
@@ -104,6 +108,7 @@ relocation_return:
  * Set up final (full) environment
  */
 	bl	c_runtime_cpu_setup		/* still call old routine */
+#endif /* !CONFIG_SPL_BUILD */
 
 /* TODO: For SPL, call spl_relocate_stack_gd() to alloc stack relocation */
 
@@ -125,7 +130,5 @@ clear_loop:
 	b	board_init_r			/* PC relative jump */
 
 	/* NOTREACHED - board_init_r() does not return */
-
-#endif /* !CONFIG_SPL_BUILD */
 
 ENDPROC(_main)

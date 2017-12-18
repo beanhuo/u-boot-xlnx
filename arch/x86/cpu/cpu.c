@@ -24,10 +24,14 @@
 #include <dm.h>
 #include <errno.h>
 #include <malloc.h>
+#include <syscon.h>
 #include <asm/control_regs.h>
+#include <asm/coreboot_tables.h>
 #include <asm/cpu.h>
 #include <asm/lapic.h>
+#include <asm/microcode.h>
 #include <asm/mp.h>
+#include <asm/mrccache.h>
 #include <asm/msr.h>
 #include <asm/mtrr.h>
 #include <asm/post.h>
@@ -71,7 +75,7 @@ struct cpuinfo_x86 {
  * List of cpu vendor strings along with their normalized
  * id values.
  */
-static struct {
+static const struct {
 	int vendor;
 	const char *name;
 } x86_vendors[] = {
@@ -131,7 +135,7 @@ static void load_gdt(const u64 *boot_gdt, u16 num_entries)
 	struct gdt_ptr gdt;
 
 	gdt.len = (num_entries * X86_GDT_ENTRY_SIZE) - 1;
-	gdt.ptr = (u32)boot_gdt;
+	gdt.ptr = (ulong)boot_gdt;
 
 	asm volatile("lgdtl %0\n" : : "m" (gdt));
 }
@@ -333,6 +337,16 @@ static inline void get_fms(struct cpuinfo_x86 *c, uint32_t tfms)
 		c->x86_model += ((tfms >> 16) & 0xF) << 4;
 }
 
+u32 cpu_get_family_model(void)
+{
+	return gd->arch.x86_device & 0x0fff0ff0;
+}
+
+u32 cpu_get_stepping(void)
+{
+	return gd->arch.x86_mask;
+}
+
 int x86_cpu_init_f(void)
 {
 	const u32 em_rst = ~X86_CR0_EM;
@@ -459,14 +473,14 @@ void  flush_cache(unsigned long dummy1, unsigned long dummy2)
 __weak void reset_cpu(ulong addr)
 {
 	/* Do a hard reset through the chipset's reset control register */
-	outb(SYS_RST | RST_CPU, PORT_RESET);
+	outb(SYS_RST | RST_CPU, IO_PORT_RESET);
 	for (;;)
 		cpu_hlt();
 }
 
 void x86_full_reset(void)
 {
-	outb(FULL_RST | SYS_RST | RST_CPU, PORT_RESET);
+	outb(FULL_RST | SYS_RST | RST_CPU, IO_PORT_RESET);
 }
 
 int dcache_status(void)
@@ -616,13 +630,11 @@ static void build_pagetable(uint32_t *pgtable)
 	memset(pgtable, '\0', PAGETABLE_SIZE);
 
 	/* Level 4 needs a single entry */
-	pgtable[0] = (uint32_t)&pgtable[1024] + 7;
+	pgtable[0] = (ulong)&pgtable[1024] + 7;
 
 	/* Level 3 has one 64-bit entry for each GiB of memory */
-	for (i = 0; i < 4; i++) {
-		pgtable[1024 + i * 2] = (uint32_t)&pgtable[2048] +
-							0x1000 * i + 7;
-	}
+	for (i = 0; i < 4; i++)
+		pgtable[1024 + i * 2] = (ulong)&pgtable[2048] + 0x1000 * i + 7;
 
 	/* Level 2 has 2048 64-bit entries, each repesenting 2MiB */
 	for (i = 0; i < 2048; i++)
@@ -650,9 +662,19 @@ void show_boot_progress(int val)
 }
 
 #ifndef CONFIG_SYS_COREBOOT
+/*
+ * Implement a weak default function for boards that optionally
+ * need to clean up the system before jumping to the kernel.
+ */
+__weak void board_final_cleanup(void)
+{
+}
+
 int last_stage_init(void)
 {
 	write_tables();
+
+	board_final_cleanup();
 
 	return 0;
 }
@@ -688,7 +710,7 @@ static int x86_mp_init(void)
 }
 #endif
 
-__weak int x86_init_cpus(void)
+static int x86_init_cpus(void)
 {
 #ifdef CONFIG_SMP
 	debug("Init additional CPUs\n");
@@ -709,8 +731,43 @@ __weak int x86_init_cpus(void)
 
 int cpu_init_r(void)
 {
-	if (ll_boot_init())
-		return x86_init_cpus();
+	struct udevice *dev;
+	int ret;
+
+	if (!ll_boot_init())
+		return 0;
+
+	ret = x86_init_cpus();
+	if (ret)
+		return ret;
+
+	/*
+	 * Set up the northbridge, PCH and LPC if available. Note that these
+	 * may have had some limited pre-relocation init if they were probed
+	 * before relocation, but this is post relocation.
+	 */
+	uclass_first_device(UCLASS_NORTHBRIDGE, &dev);
+	uclass_first_device(UCLASS_PCH, &dev);
+	uclass_first_device(UCLASS_LPC, &dev);
+
+	/* Set up pin control if available */
+	ret = syscon_get_by_driver_data(X86_SYSCON_PINCONF, &dev);
+	debug("%s, pinctrl=%p, ret=%d\n", __func__, dev, ret);
 
 	return 0;
 }
+
+#ifndef CONFIG_EFI_STUB
+int reserve_arch(void)
+{
+#ifdef CONFIG_ENABLE_MRC_CACHE
+	mrccache_reserve();
+#endif
+
+#ifdef CONFIG_SEABIOS
+	high_table_reserve();
+#endif
+
+	return 0;
+}
+#endif

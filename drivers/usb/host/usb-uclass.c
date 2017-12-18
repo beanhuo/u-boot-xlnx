@@ -14,7 +14,6 @@
 #include <usb.h>
 #include <dm/device-internal.h>
 #include <dm/lists.h>
-#include <dm/root.h>
 #include <dm/uclass-internal.h>
 
 DECLARE_GLOBAL_DATA_PTR;
@@ -159,7 +158,11 @@ int usb_stop(void)
 		if (ret && !err)
 			err = ret;
 	}
-
+#ifdef CONFIG_BLK
+	ret = blk_unbind_all(IF_TYPE_USB);
+	if (ret && !err)
+		err = ret;
+#endif
 #ifdef CONFIG_SANDBOX
 	struct udevice *dev;
 
@@ -344,12 +347,6 @@ struct usb_device *usb_get_dev_index(struct udevice *bus, int index)
 	return find_child_devnum(dev, devnum);
 }
 #endif
-
-int usb_post_bind(struct udevice *dev)
-{
-	/* Scan the bus for devices */
-	return dm_scan_fdt_node(dev, gd->fdt_blob, dev->of_offset, false);
-}
 
 int usb_setup_ehci_gadget(struct ehci_ctrl **ctlrp)
 {
@@ -764,7 +761,7 @@ UCLASS_DRIVER(usb) = {
 	.id		= UCLASS_USB,
 	.name		= "usb",
 	.flags		= DM_UC_FLAG_SEQ_ALIAS,
-	.post_bind	= usb_post_bind,
+	.post_bind	= dm_scan_fdt_dev,
 	.priv_auto_alloc_size = sizeof(struct usb_uclass_priv),
 	.per_child_auto_alloc_size = sizeof(struct usb_device),
 	.per_device_auto_alloc_size = sizeof(struct usb_bus_priv),

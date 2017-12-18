@@ -21,43 +21,77 @@
 
 DECLARE_GLOBAL_DATA_PTR;
 
-static int mmc_load_image_raw_sector(struct mmc *mmc, unsigned long sector)
+static int mmc_load_legacy(struct spl_image_info *spl_image, struct mmc *mmc,
+			   ulong sector, struct image_header *header)
+{
+	u32 image_size_sectors;
+	unsigned long count;
+	int ret;
+
+	ret = spl_parse_image_header(spl_image, header);
+	if (ret)
+		return ret;
+
+	/* convert size to sectors - round up */
+	image_size_sectors = (spl_image->size + mmc->read_bl_len - 1) /
+			     mmc->read_bl_len;
+
+	/* Read the header too to avoid extra memcpy */
+	count = blk_dread(mmc_get_blk_desc(mmc), sector, image_size_sectors,
+			  (void *)(ulong)spl_image->load_addr);
+	debug("read %x sectors to %x\n", image_size_sectors,
+	      spl_image->load_addr);
+	if (count != image_size_sectors)
+		return -EIO;
+
+	return 0;
+}
+
+static ulong h_spl_load_read(struct spl_load_info *load, ulong sector,
+			     ulong count, void *buf)
+{
+	struct mmc *mmc = load->dev;
+
+	return blk_dread(mmc_get_blk_desc(mmc), sector, count, buf);
+}
+
+static int mmc_load_image_raw_sector(struct spl_image_info *spl_image,
+				     struct mmc *mmc, unsigned long sector)
 {
 	unsigned long count;
-	u32 image_size_sectors;
 	struct image_header *header;
-	int dev_num = mmc->block_dev.dev;
+	int ret = 0;
 
 	header = (struct image_header *)(CONFIG_SYS_TEXT_BASE -
 					 sizeof(struct image_header));
 
 	/* read image header to find the image size & load address */
-	count = mmc->block_dev.block_read(dev_num, sector, 1, header);
-	debug("read sector %lx, count=%lu\n", sector, count);
-	if (count == 0)
+	count = blk_dread(mmc_get_blk_desc(mmc), sector, 1, header);
+	debug("hdr read sector %lx, count=%lu\n", sector, count);
+	if (count == 0) {
+		ret = -EIO;
 		goto end;
-
-	if (image_get_magic(header) != IH_MAGIC) {
-		puts("bad magic\n");
-		return -1;
 	}
 
-	spl_parse_image_header(header);
+	if (IS_ENABLED(CONFIG_SPL_LOAD_FIT) &&
+	    image_get_magic(header) == FDT_MAGIC) {
+		struct spl_load_info load;
 
-	/* convert size to sectors - round up */
-	image_size_sectors = (spl_image.size + mmc->read_bl_len - 1) /
-			     mmc->read_bl_len;
-
-	/* Read the header too to avoid extra memcpy */
-	count = mmc->block_dev.block_read(dev_num, sector, image_size_sectors,
-					  (void *)(ulong)spl_image.load_addr);
-	debug("read %x sectors to %x\n", image_size_sectors,
-	      spl_image.load_addr);
+		debug("Found FIT\n");
+		load.dev = mmc;
+		load.priv = NULL;
+		load.filename = NULL;
+		load.bl_len = mmc->read_bl_len;
+		load.read = h_spl_load_read;
+		ret = spl_load_simple_fit(spl_image, &load, sector, header);
+	} else {
+		ret = mmc_load_legacy(spl_image, mmc, sector, header);
+	}
 
 end:
-	if (count == 0) {
+	if (ret) {
 #ifdef CONFIG_SPL_LIBCOMMON_SUPPORT
-		puts("spl: mmc block read error\n");
+		puts("mmc_load_image_raw_sector: mmc block read error\n");
 #endif
 		return -1;
 	}
@@ -120,12 +154,13 @@ static int spl_mmc_find_device(struct mmc **mmcp, u32 boot_device)
 }
 
 #ifdef CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_PARTITION
-static int mmc_load_image_raw_partition(struct mmc *mmc, int partition)
+static int mmc_load_image_raw_partition(struct spl_image_info *spl_image,
+					struct mmc *mmc, int partition)
 {
 	disk_partition_t info;
 	int err;
 
-	err = get_partition_info(&mmc->block_dev, partition, &info);
+	err = part_get_info(mmc_get_blk_desc(mmc), partition, &info);
 	if (err) {
 #ifdef CONFIG_SPL_LIBCOMMON_SUPPORT
 		puts("spl: partition error\n");
@@ -133,61 +168,74 @@ static int mmc_load_image_raw_partition(struct mmc *mmc, int partition)
 		return -1;
 	}
 
-#ifdef CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_SECTOR
-	return mmc_load_image_raw_sector(mmc, info.start +
-					 CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_SECTOR);
+#ifdef CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_USE_SECTOR
+	return mmc_load_image_raw_sector(spl_image, mmc,
+			info.start + CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_SECTOR);
 #else
-	return mmc_load_image_raw_sector(mmc, info.start);
+	return mmc_load_image_raw_sector(spl_image, mmc, info.start);
 #endif
 }
 #else
 #define CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_PARTITION -1
-static int mmc_load_image_raw_partition(struct mmc *mmc, int partition)
+static int mmc_load_image_raw_partition(struct spl_image_info *spl_image,
+					struct mmc *mmc, int partition)
 {
 	return -ENOSYS;
 }
 #endif
 
 #ifdef CONFIG_SPL_OS_BOOT
-static int mmc_load_image_raw_os(struct mmc *mmc)
+static int mmc_load_image_raw_os(struct spl_image_info *spl_image,
+				 struct mmc *mmc)
 {
 	unsigned long count;
+	int ret;
 
-	count = mmc->block_dev.block_read(
-		mmc->block_dev.dev,
+	count = blk_dread(mmc_get_blk_desc(mmc),
 		CONFIG_SYS_MMCSD_RAW_MODE_ARGS_SECTOR,
 		CONFIG_SYS_MMCSD_RAW_MODE_ARGS_SECTORS,
 		(void *) CONFIG_SYS_SPL_ARGS_ADDR);
 	if (count == 0) {
 #ifdef CONFIG_SPL_LIBCOMMON_SUPPORT
-		puts("spl: mmc block read error\n");
+		puts("mmc_load_image_raw_os: mmc block read error\n");
 #endif
 		return -1;
 	}
 
-	return mmc_load_image_raw_sector(mmc,
+	ret = mmc_load_image_raw_sector(spl_image, mmc,
 		CONFIG_SYS_MMCSD_RAW_MODE_KERNEL_SECTOR);
+	if (ret)
+		return ret;
+
+	if (spl_image->os != IH_OS_LINUX) {
+		puts("Expected Linux image is not found. Trying to start U-boot\n");
+		return -ENOENT;
+	}
+
+	return 0;
 }
 #else
 int spl_start_uboot(void)
 {
 	return 1;
 }
-static int mmc_load_image_raw_os(struct mmc *mmc)
+static int mmc_load_image_raw_os(struct spl_image_info *spl_image,
+				 struct mmc *mmc)
 {
 	return -ENOSYS;
 }
 #endif
 
 #ifdef CONFIG_SPL_FPGA_SUPPORT
-static int mmc_load_fpga_image_fat(struct mmc *mmc)
+static int mmc_load_fpga_image_fat(struct spl_image_info *spl_image,
+				   struct mmc *mmc)
 {
 	int err;
 	int devnum = 0;
 	const fpga_desc *const desc = fpga_get_desc(devnum);
 	xilinx_desc *desc_xilinx = desc->devdesc;
 
-	err = spl_load_image_fat(&mmc->block_dev,
+	err = spl_load_image_fat(spl_image, mmc_get_blk_desc(mmc),
 					CONFIG_SYS_MMCSD_FS_BOOT_PARTITION,
 					CONFIG_SPL_FPGA_LOAD_ARGS_NAME);
 
@@ -199,29 +247,29 @@ static int mmc_load_fpga_image_fat(struct mmc *mmc)
 		return -1;
 	}
 #ifdef CONFIG_SPL_FPGA_BIT
-	return fpga_loadbitstream(devnum, (char *)spl_image.load_addr,
+	return fpga_loadbitstream(devnum, (char *)spl_image->load_addr,
 				  desc_xilinx->size, BIT_FULL);
 #else
-	return fpga_load(devnum, (const void *)spl_image.load_addr,
+	return fpga_load(devnum, (const void *)spl_image->load_addr,
 			 desc_xilinx->size, BIT_FULL);
 #endif
 }
 #endif
 
 #ifdef CONFIG_SYS_MMCSD_FS_BOOT_PARTITION
-int spl_mmc_do_fs_boot(struct mmc *mmc)
+static int spl_mmc_do_fs_boot(struct spl_image_info *spl_image, struct mmc *mmc)
 {
 	int err = -ENOSYS;
 
 #ifdef CONFIG_SPL_FAT_SUPPORT
 	if (!spl_start_uboot()) {
-		err = spl_load_image_fat_os(&mmc->block_dev,
+		err = spl_load_image_fat_os(spl_image, mmc_get_blk_desc(mmc),
 			CONFIG_SYS_MMCSD_FS_BOOT_PARTITION);
 		if (!err)
 			return err;
 	}
 #ifdef CONFIG_SPL_FS_LOAD_PAYLOAD_NAME
-	err = spl_load_image_fat(&mmc->block_dev,
+	err = spl_load_image_fat(spl_image, mmc_get_blk_desc(mmc),
 				 CONFIG_SYS_MMCSD_FS_BOOT_PARTITION,
 				 CONFIG_SPL_FS_LOAD_PAYLOAD_NAME);
 	if (!err)
@@ -230,13 +278,13 @@ int spl_mmc_do_fs_boot(struct mmc *mmc)
 #endif
 #ifdef CONFIG_SPL_EXT_SUPPORT
 	if (!spl_start_uboot()) {
-		err = spl_load_image_ext_os(&mmc->block_dev,
+		err = spl_load_image_ext_os(spl_image, mmc_get_blk_desc(mmc),
 			CONFIG_SYS_MMCSD_FS_BOOT_PARTITION);
 		if (!err)
 			return err;
 	}
 #ifdef CONFIG_SPL_FS_LOAD_PAYLOAD_NAME
-	err = spl_load_image_ext(&mmc->block_dev,
+	err = spl_load_image_ext(spl_image, mmc_get_blk_desc(mmc),
 				 CONFIG_SYS_MMCSD_FS_BOOT_PARTITION,
 				 CONFIG_SPL_FS_LOAD_PAYLOAD_NAME);
 	if (!err)
@@ -251,20 +299,21 @@ int spl_mmc_do_fs_boot(struct mmc *mmc)
 	return err;
 }
 #else
-int spl_mmc_do_fs_boot(struct mmc *mmc)
+static int spl_mmc_do_fs_boot(struct spl_image_info *spl_image, struct mmc *mmc)
 {
 	return -ENOSYS;
 }
 #endif
 
-int spl_mmc_load_image(u32 boot_device)
+int spl_mmc_load_image(struct spl_image_info *spl_image,
+		       struct spl_boot_device *bootdev)
 {
 	struct mmc *mmc = NULL;
 	u32 boot_mode;
 	int err = 0;
 	__maybe_unused int part;
 
-	err = spl_mmc_find_device(&mmc, boot_device);
+	err = spl_mmc_find_device(&mmc, bootdev->boot_device);
 	if (err)
 		return err;
 
@@ -276,7 +325,7 @@ int spl_mmc_load_image(u32 boot_device)
 		return err;
 	}
 
-	boot_mode = spl_boot_mode();
+	boot_mode = spl_boot_mode(bootdev->boot_device);
 	err = -EINVAL;
 	switch (boot_mode) {
 	case MMCSD_MODE_EMMCBOOT:
@@ -290,7 +339,11 @@ int spl_mmc_load_image(u32 boot_device)
 			if (part == 7)
 				part = 0;
 
-			err = mmc_switch_part(0, part);
+			if (CONFIG_IS_ENABLED(MMC_TINY))
+				err = mmc_switch_part(mmc, part);
+			else
+				err = blk_dselect_hwpart(mmc_get_blk_desc(mmc), part);
+
 			if (err) {
 #ifdef CONFIG_SPL_LIBCOMMON_SUPPORT
 				puts("spl: mmc partition switch failed\n");
@@ -302,35 +355,34 @@ int spl_mmc_load_image(u32 boot_device)
 		debug("spl: mmc boot mode: raw\n");
 
 		if (!spl_start_uboot()) {
-			err = mmc_load_image_raw_os(mmc);
+			err = mmc_load_image_raw_os(spl_image, mmc);
 			if (!err)
 				return err;
 		}
 
-		err = mmc_load_image_raw_partition(mmc,
+		err = mmc_load_image_raw_partition(spl_image, mmc,
 			CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_PARTITION);
 		if (!err)
 			return err;
-#if defined(CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_SECTOR)
-		err = mmc_load_image_raw_sector(mmc,
+#ifdef CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_USE_SECTOR
+		err = mmc_load_image_raw_sector(spl_image, mmc,
 			CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_SECTOR);
 		if (!err)
 			return err;
 #endif
-		break;
+		/* If RAW mode fails, try FS mode. */
 	case MMCSD_MODE_FS:
 		debug("spl: mmc boot mode: fs\n");
 
 #ifdef CONFIG_SPL_FPGA_SUPPORT
-		mmc_load_fpga_image_fat(mmc);
+		mmc_load_fpga_image_fat(spl_image, mmc);
 #endif
 
-		err = spl_mmc_do_fs_boot(mmc);
+		err = spl_mmc_do_fs_boot(spl_image, mmc);
 		if (!err)
 			return err;
 
 		break;
-	case MMCSD_MODE_UNDEFINED:
 #ifdef CONFIG_SPL_LIBCOMMON_SUPPORT
 	default:
 		puts("spl: mmc: wrong boot mode\n");
@@ -339,3 +391,7 @@ int spl_mmc_load_image(u32 boot_device)
 
 	return err;
 }
+
+SPL_LOAD_IMAGE_METHOD("MMC1", 0, BOOT_DEVICE_MMC1, spl_mmc_load_image);
+SPL_LOAD_IMAGE_METHOD("MMC2", 0, BOOT_DEVICE_MMC2, spl_mmc_load_image);
+SPL_LOAD_IMAGE_METHOD("MMC2_2", 0, BOOT_DEVICE_MMC2_2, spl_mmc_load_image);

@@ -1,3 +1,5 @@
+menu "Clock"
+
 config CLK
 	bool "Enable clock driver support"
 	depends on DM
@@ -17,3 +19,25 @@ config SPL_CLK
 	  SPL, enable this option. It might provide a cleaner interface to
 	  setting up clocks within SPL, and allows the same drivers to be
 	  used as U-Boot proper.
+
+config CLK_BOSTON
+	def_bool y if TARGET_BOSTON
+	depends on CLK
+	select REGMAP
+	select SYSCON
+	help
+	  Enable this to support the clocks
+
+config CLK_ZYNQMP
+	bool "Enable clock driver support for ZynqMP"
+	depends on ARCH_ZYNQMP
+	help
+	  This clock driver adds support for clock realted settings for
+	  ZynqMP platform.
+
+source "drivers/clk/tegra/Kconfig"
+source "drivers/clk/uniphier/Kconfig"
+source "drivers/clk/exynos/Kconfig"
+source "drivers/clk/at91/Kconfig"
+
+endmenu

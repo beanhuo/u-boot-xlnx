@@ -6,19 +6,7 @@
  * Copyright (C) 2009 Nick Thompson, GE Fanuc, Ltd. <nick.thompson@gefanuc.com>
  * Copyright (C) 2007 Sergey Kubushyn <ksi@koi8.net>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * SPDX-License-Identifier:	GPL-2.0+
  */
 
 #include <common.h>
@@ -30,7 +18,7 @@
 #include <asm/arch/hardware.h>
 #include <asm/ti-common/davinci_nand.h>
 #include <asm/io.h>
-#include <asm/errno.h>
+#include <linux/errno.h>
 #include <asm/arch/davinci_misc.h>
 #ifdef CONFIG_DAVINCI_MMC
 #include <mmc.h>
@@ -345,15 +333,17 @@ int misc_init_r(void)
 			get_mac_addr(addr);
 		}
 
-		if (is_multicast_ethaddr(addr) || is_zero_ethaddr(addr)) {
-			printf("Invalid MAC address read.\n");
-			return -EINVAL;
-		}
-		sprintf((char *)tmp, "%02x:%02x:%02x:%02x:%02x:%02x", addr[0],
-				addr[1], addr[2], addr[3], addr[4], addr[5]);
+		if (!is_multicast_ethaddr(addr) && !is_zero_ethaddr(addr)) {
+			sprintf((char *)tmp, "%02x:%02x:%02x:%02x:%02x:%02x",
+				addr[0], addr[1], addr[2], addr[3], addr[4],
+				addr[5]);
 
-		setenv("ethaddr", (char *)tmp);
+			setenv("ethaddr", (char *)tmp);
+		} else {
+			printf("Invalid MAC address read.\n");
+		}
 	}
+
 #ifdef CONFIG_DRIVER_TI_EMAC_USE_RMII
 	/* Select RMII fucntion through the expander */
 	if (rmii_hw_init())

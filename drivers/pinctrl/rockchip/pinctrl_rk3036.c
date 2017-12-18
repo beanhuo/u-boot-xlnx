@@ -272,5 +272,6 @@ U_BOOT_DRIVER(pinctrl_rk3036) = {
 	.of_match	= rk3036_pinctrl_ids,
 	.priv_auto_alloc_size = sizeof(struct rk3036_pinctrl_priv),
 	.ops		= &rk3036_pinctrl_ops,
+	.bind		= dm_scan_fdt_dev,
 	.probe		= rk3036_pinctrl_probe,
 };
